@@ -14,13 +14,14 @@ def get_conn() -> sqlite3.Connection:
 
 
 def init_db():
-    """Create tables if they don't exist yet."""
+    """Create tables and apply any missing schema migrations."""
     with get_conn() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS leads (
                 id            INTEGER PRIMARY KEY AUTOINCREMENT,
                 business_name TEXT    NOT NULL,
                 email         TEXT,
+                email_source  TEXT,
                 phone         TEXT,
                 website       TEXT,
                 address       TEXT,
@@ -37,26 +38,32 @@ def init_db():
             CREATE UNIQUE INDEX IF NOT EXISTS idx_email
             ON leads(email) WHERE email IS NOT NULL AND email != ''
         """)
+        # Migration: add email_source column to existing databases
+        try:
+            conn.execute("ALTER TABLE leads ADD COLUMN email_source TEXT")
+        except sqlite3.OperationalError:
+            pass  # column already exists
         conn.commit()
 
 
 def insert_lead(lead: dict) -> bool:
     """
     Insert a lead row.  Returns True if it was new, False if it already existed.
-    Leads with no email are always inserted (no unique constraint).
+    Leads with no email are always inserted (no unique constraint on email).
     """
-    status = lead.get("status", "new")
-    email  = lead.get("email") or None   # normalise empty string → None
+    status       = lead.get("status", "new")
+    email        = lead.get("email") or None        # normalise empty string → None
+    email_source = lead.get("email_source") or None
 
     try:
         with get_conn() as conn:
             conn.execute("""
                 INSERT INTO leads
-                  (business_name, email, phone, website, address,
+                  (business_name, email, email_source, phone, website, address,
                    city, country, keyword, source, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                lead.get("business_name"), email,
+                lead.get("business_name"), email, email_source,
                 lead.get("phone"),         lead.get("website"),
                 lead.get("address"),       lead.get("city"),
                 lead.get("country"),       lead.get("keyword"),
@@ -65,10 +72,34 @@ def insert_lead(lead: dict) -> bool:
             conn.commit()
             return True
     except sqlite3.IntegrityError:
-        # Duplicate email
+        # Duplicate email – lead already exists
         return False
     except Exception:
         return False
+
+
+def is_duplicate_lead(website: str = "", phone: str = "") -> bool:
+    """
+    Return True if a lead with the same website OR phone already exists in the DB.
+    Used to skip scraping / email look-up for businesses already stored.
+    """
+    with get_conn() as conn:
+        c = conn.cursor()
+        if website and website.strip():
+            c.execute(
+                "SELECT 1 FROM leads WHERE website = ? LIMIT 1",
+                (website.strip(),),
+            )
+            if c.fetchone():
+                return True
+        if phone and phone.strip():
+            c.execute(
+                "SELECT 1 FROM leads WHERE phone = ? LIMIT 1",
+                (phone.strip(),),
+            )
+            if c.fetchone():
+                return True
+    return False
 
 
 def get_leads(status: Optional[str] = None) -> pd.DataFrame:

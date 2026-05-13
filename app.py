@@ -15,7 +15,7 @@ from streamlit_oauth import OAuth2Component
 
 from database import (
     delete_leads, get_leads, get_leads_with_email,
-    get_stats, init_db, insert_lead, update_status,
+    get_stats, init_db, insert_lead, is_duplicate_lead, update_status,
 )
 from email_finder import find_email_on_website
 from email_sender import send_batch
@@ -561,10 +561,35 @@ with tab_find:
                 )
                 st.stop()
 
-            st.success(f"Found **{len(businesses)}** businesses — processing …")
+            # ── Dedup within this batch (same website or same phone) ──────────
+            seen_websites: set = set()
+            seen_phones:   set = set()
+            unique_businesses = []
+            batch_dups = 0
+            for biz in businesses:
+                ws = (biz.get("website") or "").strip()
+                ph = (biz.get("phone")   or "").strip()
+                key_ws = ws if ws else None
+                key_ph = ph if ph else None
+                if (key_ws and key_ws in seen_websites) or \
+                   (key_ph and key_ph in seen_phones):
+                    batch_dups += 1
+                    continue
+                if key_ws:
+                    seen_websites.add(key_ws)
+                if key_ph:
+                    seen_phones.add(key_ph)
+                unique_businesses.append(biz)
+
+            businesses = unique_businesses
+            if batch_dups:
+                log(f"🔁 Removed {batch_dups} duplicates within this batch.")
+
+            st.success(f"Found **{len(businesses)}** unique businesses — processing …")
 
             new_count    = 0
             no_email_ct  = 0
+            skipped_ct   = 0
 
             for idx, biz in enumerate(businesses):
                 pct = int((idx + 1) / len(businesses) * 100)
@@ -574,20 +599,35 @@ with tab_find:
                          f"{biz.get('business_name', '')}",
                 )
 
-                # Email discovery
+                # ── Skip businesses already in the database ───────────────────
+                if is_duplicate_lead(
+                    website=biz.get("website", ""),
+                    phone=biz.get("phone", ""),
+                ):
+                    log(f"⏭️  Already in DB — skipping: {biz.get('business_name', '')}")
+                    skipped_ct += 1
+                    continue
+
+                # ── Email discovery ───────────────────────────────────────────
                 if auto_email and biz.get("website"):
                     log(f"🔗  {biz['business_name']} → {biz['website']}")
-                    found = find_email_on_website(biz["website"])
-                    if found:
-                        biz["email"] = found
-                        log(f"    📧  {found}")
+                    email, email_source = find_email_on_website(biz["website"])
+                    if email:
+                        biz["email"]        = email
+                        biz["email_source"] = email_source
+                        if email_source == "guessed":
+                            log(f"    🤔  {email}  (guessed pattern — not confirmed)")
+                        else:
+                            log(f"    📧  {email}  ✅ found on site")
                     else:
-                        biz["email"]  = None
-                        biz["status"] = "no_email"
+                        biz["email"]        = None
+                        biz["email_source"] = None
+                        biz["status"]       = "no_email"
                         log("    ⚠️  No email found")
                 elif not auto_email:
-                    biz["email"]  = None
-                    biz["status"] = "no_email"
+                    biz["email"]        = None
+                    biz["email_source"] = None
+                    biz["status"]       = "no_email"
 
                 if not biz.get("email"):
                     no_email_ct += 1
@@ -597,16 +637,24 @@ with tab_find:
 
             prog_bar.progress(100, text="Done!")
 
-            mc1, mc2, mc3 = st.columns(3)
-            mc1.metric("Businesses scraped", len(businesses))
-            mc2.metric("New leads saved",    new_count)
-            mc3.metric("No email found",     no_email_ct)
+            mc1, mc2, mc3, mc4 = st.columns(4)
+            mc1.metric("Businesses found",  len(businesses) + batch_dups)
+            mc2.metric("New leads saved",   new_count)
+            mc3.metric("Already in DB",     skipped_ct)
+            mc4.metric("No email found",    no_email_ct)
 
             st.subheader("Preview")
             df_prev = pd.DataFrame(businesses)
+            # Add a human-readable email source badge
+            if "email_source" in df_prev.columns:
+                df_prev["email ✔"] = df_prev["email_source"].map(
+                    lambda s: "✅ Found" if s == "found"
+                    else ("🤔 Guessed" if s == "guessed" else "—")
+                )
             show_cols = [
                 c for c in
-                ["business_name", "email", "phone", "website", "address", "city", "source"]
+                ["business_name", "email", "email ✔", "phone", "website",
+                 "address", "city", "source"]
                 if c in df_prev.columns
             ]
             st.dataframe(df_prev[show_cols], use_container_width=True)
@@ -636,8 +684,14 @@ with tab_db:
     else:
         st.info(f"Showing **{len(df_db)}** leads")
 
+        # Friendly email-source badge
+        if "email_source" in df_db.columns:
+            df_db["email ✔"] = df_db["email_source"].map(
+                lambda s: "✅ Found" if s == "found"
+                else ("🤔 Guessed" if s == "guessed" else "—")
+            )
         show = [
-            "id", "business_name", "email", "phone",
+            "id", "business_name", "email", "email ✔", "phone",
             "city", "country", "keyword", "source",
             "status", "email_sent_at", "created_at",
         ]
@@ -815,6 +869,12 @@ with tab_analytics:
             int(found_pct),
             text=f"{found_pct}% of leads have an email address",
         )
+        if "email_source" in df_all.columns:
+            confirmed = (df_all["email_source"] == "found").sum()
+            guessed   = (df_all["email_source"] == "guessed").sum()
+            ec1, ec2 = st.columns(2)
+            ec1.metric("✅ Confirmed emails (found on site)", confirmed)
+            ec2.metric("🤔 Guessed emails (pattern fallback)", guessed)
 
         st.subheader("Daily lead volume")
         df_all["date"] = pd.to_datetime(df_all["created_at"]).dt.date
