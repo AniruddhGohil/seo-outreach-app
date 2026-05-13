@@ -4,12 +4,14 @@ Streamlit web app: find SMB leads → extract emails → send cold outreach.
 
 Deploy free at https://streamlit.io/cloud
 """
-import hmac
+import base64
 import io
+import json
 import time
 
 import pandas as pd
 import streamlit as st
+from streamlit_oauth import OAuth2Component
 
 from database import (
     delete_leads, get_leads, get_leads_with_email,
@@ -31,59 +33,115 @@ st.set_page_config(
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Password gate  – stored in Streamlit Cloud Secrets, never in code
+# Google OAuth login gate
+# Access is controlled by the `allowed_emails` list in Streamlit Secrets.
+# To grant access to a new user → add their Gmail to that list and save.
 # ─────────────────────────────────────────────────────────────────────────────
-def _check_password() -> bool:
-    """Show a login form and return True only when the correct password is entered."""
 
+_GOOGLE_AUTH_URL   = "https://accounts.google.com/o/oauth2/auth"
+_GOOGLE_TOKEN_URL  = "https://oauth2.googleapis.com/token"
+_GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke"
+
+
+def _decode_id_token(id_token: str) -> dict:
+    """Decode the JWT payload from Google's id_token (no signature verify needed)."""
+    try:
+        payload_b64 = id_token.split(".")[1]
+        payload_b64 += "=" * (-len(payload_b64) % 4)   # fix padding
+        return json.loads(base64.urlsafe_b64decode(payload_b64))
+    except Exception:
+        return {}
+
+
+def _login_page() -> bool:
+    """
+    Render the Google Sign-In page.
+    Returns True when the user is authenticated and allowed.
+    """
     if st.session_state.get("_authenticated"):
         return True
 
+    # ── Load secrets ────────────────────────────────────────────────────────
+    try:
+        CLIENT_ID      = st.secrets["google_client_id"]
+        CLIENT_SECRET  = st.secrets["google_client_secret"]
+        REDIRECT_URI   = st.secrets["redirect_uri"]
+        ALLOWED_EMAILS = [e.strip().lower() for e in st.secrets["allowed_emails"]]
+    except KeyError as exc:
+        st.error(
+            f"⚠️ Missing secret key: **{exc}**. "
+            "Go to Streamlit Cloud → your app → Settings → Secrets and add all required keys."
+        )
+        return False
+
     # ── Centred login card ───────────────────────────────────────────────────
-    _, card, _ = st.columns([1, 1.4, 1])
+    _, card, _ = st.columns([1, 1.1, 1])
     with card:
         st.markdown("<br><br>", unsafe_allow_html=True)
         st.markdown(
             """
-            <div style='text-align:center; margin-bottom:8px;'>
-                <span style='font-size:52px;'>🚀</span><br>
-                <span style='font-size:24px; font-weight:700; color:#1e3a8a;'>
+            <div style='text-align:center; margin-bottom:28px;'>
+                <div style='font-size:58px; margin-bottom:4px;'>🚀</div>
+                <div style='font-size:26px; font-weight:800; color:#1e3a8a; letter-spacing:-.5px;'>
                     SEO Outreach Engine
-                </span><br>
-                <span style='font-size:13px; color:#6b7280;'>Private — authorised access only</span>
+                </div>
+                <div style='font-size:13px; color:#6b7280; margin-top:6px;'>
+                    Private workspace — authorised accounts only
+                </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-        st.markdown("<br>", unsafe_allow_html=True)
 
-        password_input = st.text_input(
-            "Password", type="password", placeholder="Enter your password",
-            label_visibility="collapsed",
+        oauth2 = OAuth2Component(
+            CLIENT_ID, CLIENT_SECRET,
+            _GOOGLE_AUTH_URL,
+            _GOOGLE_TOKEN_URL, _GOOGLE_TOKEN_URL,   # token + refresh
+            _GOOGLE_REVOKE_URL,
         )
-        login_btn = st.button("Login", type="primary", use_container_width=True)
 
-        if login_btn or password_input:
-            try:
-                correct = st.secrets["app_password"]
-            except KeyError:
-                st.error(
-                    "⚠️ No password configured. "
-                    "Add `app_password = \"yourpassword\"` in Streamlit Cloud → Settings → Secrets."
-                )
+        result = oauth2.authorize_button(
+            name="Sign in with Google",
+            redirect_uri=REDIRECT_URI,
+            scope="openid email profile",
+            icon="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg",
+            use_container_width=True,
+            key="google_login_btn",
+        )
+
+        if result and "token" in result:
+            user_info = _decode_id_token(result["token"].get("id_token", ""))
+            email     = user_info.get("email", "").lower()
+            name      = user_info.get("name", email)
+
+            if not email:
+                st.error("Could not retrieve your email from Google. Please try again.")
                 return False
 
-            if hmac.compare_digest(password_input, correct):
+            if email in ALLOWED_EMAILS:
                 st.session_state["_authenticated"] = True
+                st.session_state["_user_email"]    = email
+                st.session_state["_user_name"]     = name
                 st.rerun()
             else:
-                if password_input:          # only show error after user types something
-                    st.error("❌ Incorrect password. Please try again.")
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.error(
+                    f"🚫 **Access denied** for `{email}`.\n\n"
+                    "This Google account has not been granted access. "
+                    "Contact the admin to request access."
+                )
+
+        st.markdown(
+            "<div style='text-align:center; margin-top:24px; font-size:12px; color:#9ca3af;'>"
+            "🔒 Secured with Google OAuth 2.0</div>",
+            unsafe_allow_html=True,
+        )
         return False
 
 
-if not _check_password():
-    st.stop()          # everything below is hidden until login succeeds
+# Block everything below until login succeeds
+if not _login_page():
+    st.stop()
 
 # Bootstrap database
 init_db()
@@ -97,6 +155,22 @@ with st.sidebar:
     )
     st.title("SEO Outreach Engine")
     st.caption("Find → Extract → Send")
+
+    # ── Logged-in user info + logout ─────────────────────────────────────────
+    user_name  = st.session_state.get("_user_name", "")
+    user_email = st.session_state.get("_user_email", "")
+    st.markdown(
+        f"<div style='background:#eff6ff; border-radius:8px; padding:10px 12px; "
+        f"font-size:13px; color:#1e40af; margin-bottom:4px;'>"
+        f"👤 <b>{user_name}</b><br>"
+        f"<span style='color:#6b7280; font-size:12px;'>{user_email}</span>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+    if st.button("🚪 Sign out", use_container_width=True):
+        for key in ["_authenticated", "_user_email", "_user_name", "google_login_btn"]:
+            st.session_state.pop(key, None)
+        st.rerun()
     st.divider()
 
     # ── Gmail SMTP ──────────────────────────────────────────────────────────
