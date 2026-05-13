@@ -1,0 +1,16 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Database (local only – regenerated on the cloud)
+leads.db
+
+# Secrets / environment
+.env
+*.env
+.streamlit/secrets.toml
+
+# OS
+.DS_Store
+Thumbs.db
