@@ -1,8 +1,6 @@
 """
 app.py – SEO Outreach Engine
 Streamlit web app: find SMB leads → extract emails → send cold outreach.
-
-Deploy free at https://streamlit.io/cloud
 """
 import base64
 import io
@@ -34,47 +32,34 @@ st.set_page_config(
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Google OAuth login gate
-# Access is controlled by the `allowed_emails` list in Streamlit Secrets.
-# To grant access to a new user → add their Gmail to that list and save.
 # ─────────────────────────────────────────────────────────────────────────────
-
 _GOOGLE_AUTH_URL   = "https://accounts.google.com/o/oauth2/auth"
 _GOOGLE_TOKEN_URL  = "https://oauth2.googleapis.com/token"
 _GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke"
 
 
 def _decode_id_token(id_token: str) -> dict:
-    """Decode the JWT payload from Google's id_token (no signature verify needed)."""
     try:
         payload_b64 = id_token.split(".")[1]
-        payload_b64 += "=" * (-len(payload_b64) % 4)   # fix padding
+        payload_b64 += "=" * (-len(payload_b64) % 4)
         return json.loads(base64.urlsafe_b64decode(payload_b64))
     except Exception:
         return {}
 
 
 def _login_page() -> bool:
-    """
-    Render the Google Sign-In page.
-    Returns True when the user is authenticated and allowed.
-    """
     if st.session_state.get("_authenticated"):
         return True
 
-    # ── Load secrets ────────────────────────────────────────────────────────
     try:
         CLIENT_ID      = st.secrets["google_client_id"]
         CLIENT_SECRET  = st.secrets["google_client_secret"]
         REDIRECT_URI   = st.secrets["redirect_uri"]
         ALLOWED_EMAILS = [e.strip().lower() for e in st.secrets["allowed_emails"]]
     except KeyError as exc:
-        st.error(
-            f"⚠️ Missing secret key: **{exc}**. "
-            "Go to Streamlit Cloud → your app → Settings → Secrets and add all required keys."
-        )
+        st.error(f"⚠️ Missing secret key: **{exc}**. Go to Streamlit Cloud → Settings → Secrets.")
         return False
 
-    # ── Page background ──────────────────────────────────────────────────────
     st.markdown("""
     <style>
         #MainMenu, footer, header {visibility: hidden;}
@@ -86,25 +71,20 @@ def _login_page() -> bool:
     </style>
     """, unsafe_allow_html=True)
 
-    # ── Centred card ─────────────────────────────────────────────────────────
     _, card, _ = st.columns([1, 1.2, 1])
     with card:
         st.markdown(
             """
             <div style="background:white; border-radius:20px; padding:44px 40px 36px;
                         box-shadow:0 24px 64px rgba(0,0,0,0.4); text-align:center;">
-
               <div style="font-size:60px; margin-bottom:10px;">🚀</div>
-
               <div style="font-size:26px; font-weight:800; color:#0f172a;
                           letter-spacing:-0.5px; margin-bottom:6px;">
                 SEO Outreach Engine
               </div>
-
               <div style="font-size:13px; color:#64748b; margin-bottom:28px;">
                 Find leads &nbsp;·&nbsp; Extract emails &nbsp;·&nbsp; Close clients
               </div>
-
               <div style="display:flex; flex-wrap:wrap; justify-content:center;
                           gap:8px; margin-bottom:28px;">
                 <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;
@@ -119,15 +99,9 @@ def _login_page() -> bool:
                 <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;
                              border-radius:20px; padding:4px 14px; font-size:12px;
                              font-weight:600;">📧 Cold Email</span>
-                <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;
-                             border-radius:20px; padding:4px 14px; font-size:12px;
-                             font-weight:600;">🌍 Global</span>
               </div>
-
               <div style="border-top:1px solid #e2e8f0; margin-bottom:20px;"></div>
-
-              <div style="font-size:13px; color:#475569; font-weight:500;
-                          margin-bottom:4px;">
+              <div style="font-size:13px; color:#475569; font-weight:500; margin-bottom:4px;">
                 Sign in to access your private workspace
               </div>
             </div>
@@ -174,29 +148,23 @@ def _login_page() -> bool:
             st.session_state["_user_name"]     = name
             st.rerun()
         else:
-            st.error(
-                f"🚫 **Access denied** for `{email}`. "
-                "This account has not been granted access."
-            )
+            st.error(f"🚫 **Access denied** for `{email}`. This account has not been granted access.")
 
     return False
 
 
-# Block everything below until login succeeds
 if not _login_page():
     st.stop()
 
-# Bootstrap database
 init_db()
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Global app CSS  (applied after login)
+# Global CSS
 # ─────────────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-/* ── General ── */
 html, body, [class*="css"] { font-family: 'Inter', 'Segoe UI', sans-serif; }
-.stApp { background: #f8fafc; }
+.stApp { background: #f1f5f9; }
 
 /* ── Sidebar ── */
 [data-testid="stSidebar"] {
@@ -244,11 +212,11 @@ html, body, [class*="css"] { font-family: 'Inter', 'Segoe UI', sans-serif; }
 .stTabs [aria-selected="true"] {
     background: white !important;
     color: #1e3a8a !important;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.1) !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.12) !important;
 }
 
-/* ── Main button ── */
-.stButton [kind="primary"] button, button[kind="primary"] {
+/* ── Primary buttons ── */
+.stButton button[kind="primary"] {
     background: linear-gradient(135deg, #1d4ed8, #2563eb) !important;
     border: none !important;
     border-radius: 10px !important;
@@ -256,30 +224,32 @@ html, body, [class*="css"] { font-family: 'Inter', 'Segoe UI', sans-serif; }
     font-size: 15px !important;
     padding: 12px 24px !important;
     box-shadow: 0 4px 14px rgba(37,99,235,0.35) !important;
-    transition: all 0.2s !important;
+    color: white !important;
 }
-.stButton [kind="primary"] button:hover {
+.stButton button[kind="primary"]:hover {
     transform: translateY(-1px) !important;
     box-shadow: 0 6px 20px rgba(37,99,235,0.45) !important;
 }
 
-/* ── Metrics ── */
+/* ── Streamlit native metric override ── */
 [data-testid="metric-container"] {
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    padding: 16px 20px !important;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    background: white !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 14px !important;
+    padding: 18px 22px !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
 }
-[data-testid="metric-container"] [data-testid="stMetricValue"] {
-    font-size: 28px !important;
+[data-testid="stMetricValue"] {
+    font-size: 30px !important;
     font-weight: 800 !important;
-    color: #1e3a8a !important;
+    color: #0f172a !important;
 }
-[data-testid="metric-container"] [data-testid="stMetricLabel"] {
-    font-size: 13px !important;
+[data-testid="stMetricLabel"] {
+    font-size: 12px !important;
     color: #64748b !important;
-    font-weight: 500 !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
 }
 
 /* ── Dataframe ── */
@@ -287,44 +257,92 @@ html, body, [class*="css"] { font-family: 'Inter', 'Segoe UI', sans-serif; }
     border: 1px solid #e2e8f0 !important;
     border-radius: 12px !important;
     overflow: hidden !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04) !important;
 }
 
-/* ── Headers ── */
-h1 { color: #0f172a !important; font-weight: 800 !important; }
-h2 { color: #1e3a8a !important; font-weight: 700 !important; }
-h3 { color: #1e40af !important; font-weight: 600 !important; }
-
-/* ── Log output box ── */
-.stCodeBlock { border-radius: 10px !important; font-size: 12px !important; }
-
-/* ── Info / warning / success ── */
+/* ── Alerts ── */
 .stAlert { border-radius: 10px !important; }
 
 /* ── Slider ── */
-[data-testid="stSlider"] [data-baseweb="slider"] div[role="slider"] {
-    background: #2563eb !important;
-}
+[data-baseweb="slider"] [role="slider"] { background: #2563eb !important; }
 </style>
 """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Sidebar – global settings
+# UI helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _card(content_html: str, padding: str = "24px 28px"):
+    st.markdown(
+        f'<div style="background:white; border-radius:16px; padding:{padding}; '
+        f'box-shadow:0 2px 10px rgba(0,0,0,0.06); margin-bottom:16px;">'
+        f'{content_html}</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def _stat_card(icon: str, label: str, value, color: str, sub: str = ""):
+    sub_html = f'<div style="font-size:12px;color:#94a3b8;margin-top:4px;">{sub}</div>' if sub else ""
+    st.markdown(
+        f"""
+        <div style="background:white; border-radius:14px; padding:20px 22px;
+                    border-left:5px solid {color};
+                    box-shadow:0 2px 10px rgba(0,0,0,0.06);">
+          <div style="font-size:22px; margin-bottom:6px;">{icon}</div>
+          <div style="font-size:32px; font-weight:800; color:#0f172a; line-height:1;">
+            {value}
+          </div>
+          <div style="font-size:12px; font-weight:700; color:#64748b;
+                      text-transform:uppercase; letter-spacing:0.5px; margin-top:6px;">
+            {label}
+          </div>
+          {sub_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _badge(text: str, color: str, bg: str) -> str:
+    return (
+        f'<span style="background:{bg}; color:{color}; border-radius:20px; '
+        f'padding:3px 10px; font-size:11px; font-weight:700; '
+        f'display:inline-block;">{text}</span>'
+    )
+
+
+STATUS_BADGE = {
+    "new":      _badge("● NEW",      "#1d4ed8", "#eff6ff"),
+    "sent":     _badge("✓ SENT",     "#15803d", "#f0fdf4"),
+    "failed":   _badge("✗ FAILED",   "#dc2626", "#fef2f2"),
+    "no_email": _badge("— NO EMAIL", "#92400e", "#fffbeb"),
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Sidebar
 # ─────────────────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.image(
-        "https://img.icons8.com/fluency/96/rocket.png", width=60
+    st.markdown(
+        "<div style='text-align:center; padding:8px 0 4px;'>"
+        "<span style='font-size:44px;'>🚀</span>"
+        "</div>",
+        unsafe_allow_html=True,
     )
-    st.title("SEO Outreach Engine")
-    st.caption("Find → Extract → Send")
+    st.markdown(
+        "<div style='text-align:center; font-size:18px; font-weight:800; "
+        "color:#f1f5f9; margin-bottom:2px;'>SEO Outreach Engine</div>"
+        "<div style='text-align:center; font-size:12px; color:#94a3b8; "
+        "margin-bottom:16px;'>Find → Extract → Send</div>",
+        unsafe_allow_html=True,
+    )
 
-    # ── Logged-in user info + logout ─────────────────────────────────────────
     user_name  = st.session_state.get("_user_name", "")
     user_email = st.session_state.get("_user_email", "")
     st.markdown(
-        f"<div style='background:#eff6ff; border-radius:8px; padding:10px 12px; "
-        f"font-size:13px; color:#1e40af; margin-bottom:4px;'>"
-        f"👤 <b>{user_name}</b><br>"
-        f"<span style='color:#6b7280; font-size:12px;'>{user_email}</span>"
+        f"<div style='background:rgba(255,255,255,0.08); border-radius:10px; "
+        f"padding:10px 14px; margin-bottom:8px;'>"
+        f"<div style='font-size:13px; font-weight:700; color:#e2e8f0;'>👤 {user_name}</div>"
+        f"<div style='font-size:11px; color:#94a3b8; margin-top:2px;'>{user_email}</div>"
         f"</div>",
         unsafe_allow_html=True,
     )
@@ -332,120 +350,90 @@ with st.sidebar:
         for key in ["_authenticated", "_user_email", "_user_name", "google_login_btn"]:
             st.session_state.pop(key, None)
         st.rerun()
+
     st.divider()
+    st.markdown(
+        "<div style='font-size:13px; font-weight:700; color:#94a3b8; "
+        "text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;'>"
+        "📧 Gmail SMTP</div>",
+        unsafe_allow_html=True,
+    )
 
-    # ── Gmail SMTP  (pre-filled from secrets, editable any time) ───────────
-    st.subheader("📧 Gmail SMTP")
-
-    # Load saved defaults from secrets (if set) – user can still override
     _def_email = st.secrets.get("smtp_email",    "")
     _def_name  = st.secrets.get("smtp_name",     "")
     _def_pass  = st.secrets.get("smtp_password", "")
     _def_yelp  = st.secrets.get("yelp_api_key",  "")
 
     sender_email = st.text_input(
-        "Sending Gmail address",
-        value=_def_email,
-        placeholder="you@gmail.com",
-        key="s_email",
-        help="Can be any Gmail — doesn't have to match your login Gmail.",
+        "Sending Gmail address", value=_def_email,
+        placeholder="you@gmail.com", key="s_email",
     )
     app_password = st.text_input(
-        "Gmail App Password",
-        value=_def_pass,
-        type="password",
-        key="s_pass",
-        help=(
-            "Not your main password. Generate at "
-            "myaccount.google.com → Security → App Passwords"
-        ),
+        "Gmail App Password", value=_def_pass,
+        type="password", key="s_pass",
+        help="myaccount.google.com → Security → App Passwords",
     )
     sender_name = st.text_input(
-        "Your name (shown in From:)",
-        value=_def_name,
-        placeholder="John Smith",
-        key="s_name",
+        "Your name (From:)", value=_def_name,
+        placeholder="John Smith", key="s_name",
     )
 
-    # ── Serper.dev API key (BEST FREE option – Google Maps data) ─────────────
-    _def_serper = st.secrets.get("serper_key", "")
-    with st.expander("🗺️ Serper API Key  (FREE – best choice)", expanded=bool(_def_serper)):
+    _def_serper   = st.secrets.get("serper_key",        "")
+    _def_fsq      = st.secrets.get("foursquare_key",    "")
+    _def_gplaces  = st.secrets.get("google_places_key", "")
+
+    with st.expander("🗺️ Serper API Key  (FREE – recommended)", expanded=bool(_def_serper)):
         serper_key = st.text_input(
-            "Serper.dev API Key",
-            value=_def_serper,
-            type="password",
-            key="s_serper",
-            help="Free 2,500 Google Maps searches/month. No credit card. serper.dev",
+            "Serper.dev API Key", value=_def_serper, type="password", key="s_serper",
+            help="Free 2,500 Google Maps searches/month. serper.dev",
         )
         if _def_serper:
-            st.success("✅ Serper active — real Google Maps data!")
+            st.success("✅ Serper active!")
         else:
-            st.info("Get free key at serper.dev — takes 30 seconds, no card needed.")
+            st.info("Get free key → serper.dev")
 
-    # ── Foursquare API key (FREE – recommended first choice) ─────────────────
-    _def_fsq = st.secrets.get("foursquare_key", "")
-    with st.expander("📍 Foursquare API Key  (FREE – recommended)", expanded=bool(_def_fsq)):
+    with st.expander("📍 Foursquare API Key  (FREE)", expanded=False):
         foursquare_key = st.text_input(
-            "Foursquare Places API Key",
-            value=_def_fsq,
-            type="password",
-            key="s_fsq",
-            help="100% free, no credit card. Register at foursquare.com/developers",
+            "Foursquare API Key", value=_def_fsq, type="password", key="s_fsq",
         )
-        if _def_fsq:
-            st.success("✅ Foursquare active — free 1000 calls/day")
-        else:
-            st.info("Get a free key at foursquare.com/developers — no card needed!")
 
-    # ── Google Places API key (best data source) ────────────────────────────
-    _def_gplaces = st.secrets.get("google_places_key", "")
-    with st.expander("🗺️ Google Places API Key  (optional)", expanded=bool(_def_gplaces)):
+    with st.expander("🗺️ Google Places API Key  (optional)", expanded=False):
         google_places_key = st.text_input(
-            "Google Places API Key",
-            value=_def_gplaces,
-            type="password",
-            key="s_gplaces",
-            help=(
-                "Enable 'Places API' in Google Cloud Console → APIs & Services → Library. "
-                "Then create an API key under Credentials. $200 free credit/month."
-            ),
+            "Google Places API Key", value=_def_gplaces, type="password", key="s_gplaces",
         )
-        if _def_gplaces:
-            st.success("✅ Google Places API active — best data quality")
-        else:
-            st.info("Add key for best results. Works for AU, NZ, UK, UAE, USA.")
 
-    # ── Optional: Yelp API key ───────────────────────────────────────────────
-    with st.expander("🟡 Yelp API Key  (optional, better data)"):
+    with st.expander("🟡 Yelp API Key  (optional)", expanded=False):
         yelp_key = st.text_input(
-            "Yelp Fusion API Key",
-            value=_def_yelp,
-            type="password",
-            key="s_yelp",
-            help="Free at yelp.com/developers — 500 calls/day. Covers AU/NZ/UK/USA.",
+            "Yelp Fusion API Key", value=_def_yelp, type="password", key="s_yelp",
         )
 
     st.divider()
-
-    # ── Rate limiting ────────────────────────────────────────────────────────
-    st.subheader("⏱️ Rate Limiting")
+    st.markdown(
+        "<div style='font-size:13px; font-weight:700; color:#94a3b8; "
+        "text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;'>"
+        "⏱️ Rate Limiting</div>",
+        unsafe_allow_html=True,
+    )
     delay_sec = st.slider(
         "Seconds between emails", min_value=30, max_value=180, value=120,
-        help="45–90 s is safe for Gmail. More delay = better deliverability.",
+        help="120 s is safe. More delay = better deliverability.",
     )
 
-    # ── Safety notice ────────────────────────────────────────────────────────
     st.divider()
-    st.warning(
+    st.markdown(
         """
-**⚠️ Gmail Safety**
-- **Start with 20–30 emails/day**, then ramp up weekly
-- Sending 500/day on day 1 will flag your account
-- Use a **Gmail App Password** (never your main password)
-- Consider **Google Workspace** ($6/month) for a custom domain and higher limits
-- All emails include an unsubscribe notice (CAN-SPAM compliant)
-        """
+        <div style='background:rgba(251,191,36,0.12); border:1px solid rgba(251,191,36,0.3);
+                    border-radius:10px; padding:12px 14px; font-size:12px; color:#fbbf24;'>
+        ⚠️ <b>Gmail Safety Tips</b><br><br>
+        • Start with <b>20–30 emails/day</b><br>
+        • Use a <b>Gmail App Password</b><br>
+        • Ramp up slowly each week<br>
+        • All emails include unsubscribe notice
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helper
@@ -457,6 +445,52 @@ def _smtp_ready() -> bool:
         and st.session_state.get("s_name")
     )
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Page header
+# ─────────────────────────────────────────────────────────────────────────────
+stats = get_stats()
+
+st.markdown(
+    f"""
+    <div style="background:linear-gradient(135deg,#1e3a8a,#2563eb);
+                border-radius:16px; padding:24px 32px; margin-bottom:24px;
+                display:flex; align-items:center; gap:24px;">
+      <div style="flex:1;">
+        <div style="font-size:26px; font-weight:800; color:white; margin-bottom:4px;">
+          🚀 SEO Outreach Engine
+        </div>
+        <div style="font-size:14px; color:#93c5fd;">
+          Find small businesses · Extract emails · Land SEO clients at $600/month
+        </div>
+      </div>
+      <div style="display:flex; gap:16px;">
+        <div style="background:rgba(255,255,255,0.12); border-radius:12px;
+                    padding:14px 20px; text-align:center; min-width:80px;">
+          <div style="font-size:26px; font-weight:800; color:white;">
+            {stats.get("total", 0)}
+          </div>
+          <div style="font-size:11px; color:#93c5fd; font-weight:600;">TOTAL LEADS</div>
+        </div>
+        <div style="background:rgba(255,255,255,0.12); border-radius:12px;
+                    padding:14px 20px; text-align:center; min-width:80px;">
+          <div style="font-size:26px; font-weight:800; color:#86efac;">
+            {stats.get("sent", 0)}
+          </div>
+          <div style="font-size:11px; color:#93c5fd; font-weight:600;">EMAILS SENT</div>
+        </div>
+        <div style="background:rgba(255,255,255,0.12); border-radius:12px;
+                    padding:14px 20px; text-align:center; min-width:80px;">
+          <div style="font-size:26px; font-weight:800; color:#fde68a;">
+            {stats.get("new", 0)}
+          </div>
+          <div style="font-size:11px; color:#93c5fd; font-weight:600;">READY TO SEND</div>
+        </div>
+      </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Tabs
@@ -472,23 +506,26 @@ tab_find, tab_db, tab_send, tab_analytics = st.tabs([
 # TAB 1 – Find Leads
 # ═════════════════════════════════════════════════════════════════════════════
 with tab_find:
-    st.header("🔍 Find & Qualify Leads")
-    st.caption(
-        "Enter a business type and location. The app will scrape public directories, "
-        "visit each website, and extract contact emails automatically."
+    _card(
+        "<div style='font-size:18px; font-weight:700; color:#0f172a; margin-bottom:6px;'>"
+        "🔍 Find & Qualify Leads</div>"
+        "<div style='font-size:13px; color:#64748b;'>"
+        "Enter a business type and location. The app scrapes Google Maps, visits each "
+        "website, and automatically extracts contact emails — skipping businesses already "
+        "in your database to save API quota."
+        "</div>"
     )
 
-    # ── Input row ─────────────────────────────────────────────────────────
     c1, c2, c3 = st.columns([2, 2, 1])
     with c1:
         keyword = st.text_input(
             "Business keyword",
-            placeholder="e.g.  HVAC  ·  cake shop  ·  plumber  ·  roofer",
+            placeholder="e.g.  HVAC  ·  plumber  ·  cake shop  ·  roofer",
         )
     with c2:
         location = st.text_input(
             "City / location",
-            placeholder="e.g.  Melbourne  ·  Burlington Vermont  ·  Dubai",
+            placeholder="e.g.  Melbourne  ·  Dubai  ·  Burlington Vermont",
         )
     with c3:
         country = st.selectbox("Country", list(COUNTRY_SCRAPERS.keys()))
@@ -496,138 +533,95 @@ with tab_find:
     c4, c5 = st.columns([1, 1])
     with c4:
         max_pages = st.slider(
-            "Pages to scrape", 1, 10, 3,
-            help="Each page yields ~10–25 businesses. More pages = more leads + longer wait.",
+            "Results to fetch", 1, 10, 3,
+            help="Each page ~10 businesses. 3 pages = ~30 leads.",
         )
     with c5:
         auto_email = st.toggle(
-            "Auto-find emails from websites", value=True,
-            help="Visits each business's website and extracts their contact email.",
+            "Auto-find emails", value=True,
+            help="Visits each website to extract contact email.",
         )
 
-    # ── Run ───────────────────────────────────────────────────────────────
-    if st.button("🚀 Find Leads", type="primary", use_container_width=True):
+    if st.button("🚀 Find Leads Now", type="primary", use_container_width=True):
         if not keyword.strip():
             st.error("Please enter a business keyword (e.g. 'plumber').")
         elif not location.strip():
             st.error("Please enter a location (e.g. 'Melbourne').")
         else:
-            log_box    = st.empty()
-            prog_bar   = st.progress(0, text="Starting …")
+            log_box  = st.empty()
+            prog_bar = st.progress(0, text="Starting …")
             log_lines: list = []
 
             def log(msg: str):
                 log_lines.append(msg)
-                log_box.markdown(
-                    "```\n" + "\n".join(log_lines[-25:]) + "\n```"
-                )
+                log_box.markdown("```\n" + "\n".join(log_lines[-30:]) + "\n```")
 
             log(f"🔎 Searching: '{keyword}' in {location}, {country}")
 
-            # Read API keys – sidebar input takes priority, secrets as fallback
-            _serper_key = (
-                st.session_state.get("s_serper", "")
-                or st.secrets.get("serper_key", "")
-            )
-            _fsq_key = (
-                st.session_state.get("s_fsq", "")
-                or st.secrets.get("foursquare_key", "")
-            )
-            _gplaces_key = (
-                st.session_state.get("s_gplaces", "")
-                or st.secrets.get("google_places_key", "")
-            )
-            _yelp_key = (
-                st.session_state.get("s_yelp", "")
-                or st.secrets.get("yelp_api_key", "")
-            )
+            _serper_key  = st.session_state.get("s_serper", "") or st.secrets.get("serper_key", "")
+            _fsq_key     = st.session_state.get("s_fsq",    "") or st.secrets.get("foursquare_key", "")
+            _gplaces_key = st.session_state.get("s_gplaces","") or st.secrets.get("google_places_key", "")
+            _yelp_key    = st.session_state.get("s_yelp",   "") or st.secrets.get("yelp_api_key", "")
 
             businesses = find_businesses(
-                keyword=keyword.strip(),
-                location=location.strip(),
-                country=country,
-                max_pages=max_pages,
-                serper_key=_serper_key,
-                foursquare_key=_fsq_key,
-                yelp_api_key=_yelp_key,
-                google_places_key=_gplaces_key,
-                log_cb=log,
+                keyword=keyword.strip(), location=location.strip(), country=country,
+                max_pages=max_pages, serper_key=_serper_key, foursquare_key=_fsq_key,
+                yelp_api_key=_yelp_key, google_places_key=_gplaces_key, log_cb=log,
             )
 
             if not businesses:
-                st.warning(
-                    "No businesses found. Try a different keyword or location, "
-                    "or increase the page count."
-                )
+                st.warning("No businesses found. Try a different keyword, location, or add a Serper API key.")
                 st.stop()
 
-            # ── Dedup within this batch (same website or same phone) ──────────
-            seen_websites: set = set()
-            seen_phones:   set = set()
-            unique_businesses = []
-            batch_dups = 0
+            # ── Dedup within this batch ───────────────────────────────────────
+            seen_ws: set = set()
+            seen_ph: set = set()
+            unique_biz   = []
+            batch_dups   = 0
             for biz in businesses:
                 ws = (biz.get("website") or "").strip()
                 ph = (biz.get("phone")   or "").strip()
-                key_ws = ws if ws else None
-                key_ph = ph if ph else None
-                if (key_ws and key_ws in seen_websites) or \
-                   (key_ph and key_ph in seen_phones):
+                if (ws and ws in seen_ws) or (ph and ph in seen_ph):
                     batch_dups += 1
                     continue
-                if key_ws:
-                    seen_websites.add(key_ws)
-                if key_ph:
-                    seen_phones.add(key_ph)
-                unique_businesses.append(biz)
+                if ws: seen_ws.add(ws)
+                if ph: seen_ph.add(ph)
+                unique_biz.append(biz)
 
-            businesses = unique_businesses
+            businesses = unique_biz
             if batch_dups:
                 log(f"🔁 Removed {batch_dups} duplicates within this batch.")
 
-            st.success(f"Found **{len(businesses)}** unique businesses — processing …")
-
-            new_count    = 0
-            no_email_ct  = 0
-            skipped_ct   = 0
+            new_count   = 0
+            no_email_ct = 0
+            skipped_ct  = 0
 
             for idx, biz in enumerate(businesses):
                 pct = int((idx + 1) / len(businesses) * 100)
-                prog_bar.progress(
-                    pct,
-                    text=f"Processing {idx + 1}/{len(businesses)}: "
-                         f"{biz.get('business_name', '')}",
-                )
+                prog_bar.progress(pct, text=f"Processing {idx+1}/{len(businesses)}: {biz.get('business_name','')}")
 
-                # ── Skip businesses already in the database ───────────────────
-                if is_duplicate_lead(
-                    website=biz.get("website", ""),
-                    phone=biz.get("phone", ""),
-                ):
-                    log(f"⏭️  Already in DB — skipping: {biz.get('business_name', '')}")
+                # Skip if already in database
+                if is_duplicate_lead(website=biz.get("website",""), phone=biz.get("phone","")):
+                    log(f"⏭️  Already in DB — skipping: {biz.get('business_name','')}")
                     skipped_ct += 1
                     continue
 
-                # ── Email discovery ───────────────────────────────────────────
+                # Email discovery
                 if auto_email and biz.get("website"):
                     log(f"🔗  {biz['business_name']} → {biz['website']}")
                     email, email_source = find_email_on_website(biz["website"])
                     if email:
                         biz["email"]        = email
                         biz["email_source"] = email_source
-                        if email_source == "guessed":
-                            log(f"    🤔  {email}  (guessed pattern — not confirmed)")
-                        else:
-                            log(f"    📧  {email}  ✅ found on site")
+                        icon = "🤔" if email_source == "guessed" else "📧"
+                        note = "  (pattern guess)" if email_source == "guessed" else "  ✅"
+                        log(f"    {icon}  {email}{note}")
                     else:
-                        biz["email"]        = None
-                        biz["email_source"] = None
-                        biz["status"]       = "no_email"
+                        biz["email"] = None; biz["email_source"] = None
+                        biz["status"] = "no_email"
                         log("    ⚠️  No email found")
                 elif not auto_email:
-                    biz["email"]        = None
-                    biz["email_source"] = None
-                    biz["status"]       = "no_email"
+                    biz["email"] = None; biz["email_source"] = None; biz["status"] = "no_email"
 
                 if not biz.get("email"):
                     no_email_ct += 1
@@ -635,85 +629,133 @@ with tab_find:
                 if insert_lead(biz):
                     new_count += 1
 
-            prog_bar.progress(100, text="Done!")
+            prog_bar.progress(100, text="✅ Done!")
 
-            mc1, mc2, mc3, mc4 = st.columns(4)
-            mc1.metric("Businesses found",  len(businesses) + batch_dups)
-            mc2.metric("New leads saved",   new_count)
-            mc3.metric("Already in DB",     skipped_ct)
-            mc4.metric("No email found",    no_email_ct)
+            # Results summary cards
+            st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
+            r1, r2, r3, r4 = st.columns(4)
+            with r1:
+                _stat_card("🏢", "Businesses Found", len(businesses) + batch_dups, "#2563eb")
+            with r2:
+                _stat_card("💾", "New Leads Saved", new_count, "#16a34a",
+                           "→ ready to email" if new_count else "")
+            with r3:
+                _stat_card("⏭️", "Already in DB", skipped_ct, "#7c3aed",
+                           "quota saved" if skipped_ct else "")
+            with r4:
+                _stat_card("❌", "No Email Found", no_email_ct, "#dc2626")
 
-            st.subheader("Preview")
-            df_prev = pd.DataFrame(businesses)
-            # Add a human-readable email source badge
-            if "email_source" in df_prev.columns:
-                df_prev["email ✔"] = df_prev["email_source"].map(
-                    lambda s: "✅ Found" if s == "found"
-                    else ("🤔 Guessed" if s == "guessed" else "—")
+            if new_count > 0:
+                st.success(
+                    f"✅ **{new_count} new leads saved!** "
+                    f"Go to **✉️ Send Emails** tab to send your outreach."
                 )
-            show_cols = [
-                c for c in
-                ["business_name", "email", "email ✔", "phone", "website",
-                 "address", "city", "source"]
-                if c in df_prev.columns
-            ]
-            st.dataframe(df_prev[show_cols], use_container_width=True)
+
+            # Preview table
+            st.markdown("### 📋 Results Preview")
+            df_prev = pd.DataFrame([b for b in businesses if not is_duplicate_lead(
+                website=b.get("website",""), phone=b.get("phone","")
+            )])
+            if not df_prev.empty:
+                if "email_source" in df_prev.columns:
+                    df_prev["Email Source"] = df_prev["email_source"].map(
+                        lambda s: "✅ Found" if s == "found" else ("🤔 Guessed" if s == "guessed" else "—")
+                    )
+                show_cols = [c for c in
+                    ["business_name","email","Email Source","phone","website","address","city","source"]
+                    if c in df_prev.columns]
+                st.dataframe(df_prev[show_cols], use_container_width=True)
 
 
 # ═════════════════════════════════════════════════════════════════════════════
 # TAB 2 – Leads Database
 # ═════════════════════════════════════════════════════════════════════════════
 with tab_db:
-    st.header("📋 Leads Database")
+    st.markdown("### 📋 Leads Database")
 
-    filter_col, btn_col = st.columns([3, 1])
-    with filter_col:
+    # Status badges legend
+    st.markdown(
+        "<div style='display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px;'>"
+        + STATUS_BADGE["new"]    + "&nbsp; New lead, not yet emailed"
+        + "&nbsp;&nbsp;&nbsp;"
+        + STATUS_BADGE["sent"]   + "&nbsp; Email sent — will never be emailed again"
+        + "&nbsp;&nbsp;&nbsp;"
+        + STATUS_BADGE["failed"] + "&nbsp; Send failed (check SMTP settings)"
+        + "&nbsp;&nbsp;&nbsp;"
+        + STATUS_BADGE["no_email"] + "&nbsp; No email address found"
+        + "</div>",
+        unsafe_allow_html=True,
+    )
+
+    f1, f2, f3 = st.columns([2, 1, 1])
+    with f1:
         status_filter = st.selectbox(
             "Filter by status",
             ["all", "new", "sent", "failed", "no_email"],
+            format_func=lambda x: {
+                "all": "📋 All leads",
+                "new": "🔵 New (not yet emailed)",
+                "sent": "🟢 Sent",
+                "failed": "🔴 Failed",
+                "no_email": "🟡 No email found",
+            }.get(x, x)
         )
-    with btn_col:
-        st.write("")   # vertical spacer
-        if st.button("🔄 Refresh"):
+    with f2:
+        st.write("")
+        if st.button("🔄 Refresh", use_container_width=True):
             st.rerun()
+    with f3:
+        st.write("")
 
     df_db = get_leads(None if status_filter == "all" else status_filter)
 
     if df_db.empty:
-        st.info("No leads yet. Head to **Find Leads** to get started.")
+        st.markdown(
+            "<div style='background:white; border-radius:14px; padding:48px; "
+            "text-align:center; box-shadow:0 2px 8px rgba(0,0,0,0.06);'>"
+            "<div style='font-size:48px; margin-bottom:12px;'>📭</div>"
+            "<div style='font-size:18px; font-weight:700; color:#0f172a; margin-bottom:8px;'>No leads yet</div>"
+            "<div style='font-size:14px; color:#64748b;'>Head to <b>🔍 Find Leads</b> to get started.</div>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
     else:
-        st.info(f"Showing **{len(df_db)}** leads")
-
-        # Friendly email-source badge
-        if "email_source" in df_db.columns:
-            df_db["email ✔"] = df_db["email_source"].map(
-                lambda s: "✅ Found" if s == "found"
-                else ("🤔 Guessed" if s == "guessed" else "—")
-            )
-        show = [
-            "id", "business_name", "email", "email ✔", "phone",
-            "city", "country", "keyword", "source",
-            "status", "email_sent_at", "created_at",
-        ]
-        show = [c for c in show if c in df_db.columns]
-        st.dataframe(df_db[show], use_container_width=True, height=480)
-
-        # ── Export ─────────────────────────────────────────────────────────
-        csv_bytes = df_db.to_csv(index=False).encode("utf-8")
-        st.download_button(
-            "📥 Export as CSV",
-            data=csv_bytes,
-            file_name=f"leads_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
+        total_shown = len(df_db)
+        has_email = df_db["email"].notna() & (df_db["email"] != "")
+        st.markdown(
+            f"<div style='background:white; border-radius:12px; padding:14px 20px; "
+            f"margin-bottom:12px; box-shadow:0 1px 4px rgba(0,0,0,0.05); "
+            f"display:flex; gap:24px; flex-wrap:wrap;'>"
+            f"<span style='color:#0f172a; font-weight:700;'>📊 {total_shown} leads</span>"
+            f"<span style='color:#16a34a;'>📧 {has_email.sum()} with email</span>"
+            f"<span style='color:#64748b;'>❌ {(~has_email).sum()} without email</span>"
+            f"</div>",
+            unsafe_allow_html=True,
         )
 
-        # ── Delete ─────────────────────────────────────────────────────────
-        with st.expander("🗑️ Delete leads"):
-            ids_input = st.text_input(
-                "Enter lead IDs to delete (comma-separated)",
-                placeholder="1, 5, 12",
+        if "email_source" in df_db.columns:
+            df_db["Email ✔"] = df_db["email_source"].map(
+                lambda s: "✅ Found" if s == "found" else ("🤔 Guessed" if s == "guessed" else "—")
             )
-            if st.button("Delete", type="primary"):
+
+        show = [c for c in
+            ["id","business_name","email","Email ✔","phone","city","country",
+             "keyword","source","status","email_sent_at","created_at"]
+            if c in df_db.columns]
+        st.dataframe(df_db[show], use_container_width=True, height=440)
+
+        dl1, dl2 = st.columns([1, 3])
+        with dl1:
+            csv_bytes = df_db.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                "📥 Export CSV", data=csv_bytes,
+                file_name=f"leads_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv", use_container_width=True,
+            )
+
+        with st.expander("🗑️ Delete leads by ID"):
+            ids_input = st.text_input("Lead IDs to delete (comma-separated)", placeholder="1, 5, 12")
+            if st.button("Delete selected", type="primary"):
                 try:
                     ids = [int(x.strip()) for x in ids_input.split(",") if x.strip()]
                     if ids:
@@ -721,27 +763,58 @@ with tab_db:
                         st.success(f"Deleted {len(ids)} lead(s).")
                         st.rerun()
                 except ValueError:
-                    st.error("Invalid ID format. Use numbers separated by commas.")
+                    st.error("Invalid format. Use numbers separated by commas.")
 
 
 # ═════════════════════════════════════════════════════════════════════════════
 # TAB 3 – Send Emails
 # ═════════════════════════════════════════════════════════════════════════════
 with tab_send:
-    st.header("✉️ Send Emails")
+    st.markdown("### ✉️ Send Cold Pitch Emails")
 
-    # ── SMTP gate ─────────────────────────────────────────────────────────
+    # How it works explainer
+    st.markdown(
+        """
+        <div style="background:white; border-radius:14px; padding:20px 24px;
+                    border-left:5px solid #2563eb; margin-bottom:20px;
+                    box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+          <div style="font-weight:700; color:#0f172a; margin-bottom:10px; font-size:15px;">
+            ℹ️ How sending works
+          </div>
+          <div style="font-size:13px; color:#475569; line-height:1.8;">
+            <b>Only "New" leads are shown here</b> — leads you've already emailed (status = Sent)
+            are <b>permanently excluded</b> and will never be emailed again.<br>
+            Once an email is sent successfully, the lead is marked <b>Sent</b> with a timestamp.
+            This prevents any accidental duplicate outreach.
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
     if not _smtp_ready():
-        st.warning(
-            "⚙️ Fill in your **Gmail address**, **App Password**, and **name** "
-            "in the left sidebar before sending."
+        st.markdown(
+            """
+            <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:14px;
+                        padding:24px; text-align:center; margin-bottom:16px;">
+              <div style="font-size:36px; margin-bottom:10px;">⚙️</div>
+              <div style="font-size:16px; font-weight:700; color:#991b1b; margin-bottom:8px;">
+                Gmail SMTP not configured
+              </div>
+              <div style="font-size:13px; color:#7f1d1d;">
+                Fill in your <b>Gmail address</b>, <b>App Password</b>, and <b>your name</b>
+                in the left sidebar to unlock sending.
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
         st.info(
             "📖 How to create a Gmail App Password: "
-            "[Google guide](https://support.google.com/accounts/answer/185833)"
+            "[Google guide](https://support.google.com/accounts/answer/185833) · "
+            "Takes 2 minutes, no cost."
         )
     else:
-        # ── Email preview ──────────────────────────────────────────────────
         with st.expander("👁️ Preview email template", expanded=False):
             prev_html = EMAIL_TEMPLATE_HTML.format(
                 business_name="ABC Plumbing Services",
@@ -750,60 +823,101 @@ with tab_send:
             )
             st.markdown(prev_html, unsafe_allow_html=True)
             st.divider()
-            st.text("Plain-text version:")
-            st.text(
-                EMAIL_TEMPLATE_TEXT.format(
-                    business_name="ABC Plumbing Services",
-                    sender_name=sender_name,
-                    sender_email=sender_email,
-                )
-            )
+            st.text(EMAIL_TEMPLATE_TEXT.format(
+                business_name="ABC Plumbing Services",
+                sender_name=sender_name,
+                sender_email=sender_email,
+            ))
 
-        st.subheader("Ready-to-send leads")
         df_ready = get_leads_with_email(status="new")
 
         if df_ready.empty:
-            st.info(
-                "No leads with emails ready to send. "
-                "Go to **Find Leads**, enable 'Auto-find emails', and scrape some leads first."
+            st.markdown(
+                """
+                <div style="background:white; border-radius:14px; padding:48px;
+                            text-align:center; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+                  <div style="font-size:48px; margin-bottom:12px;">📭</div>
+                  <div style="font-size:18px; font-weight:700; color:#0f172a; margin-bottom:8px;">
+                    No leads ready to send
+                  </div>
+                  <div style="font-size:14px; color:#64748b;">
+                    Either all leads have been emailed already, or you haven't found any leads with emails yet.<br>
+                    Go to <b>🔍 Find Leads</b> with "Auto-find emails" turned on to get new leads.
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
         else:
-            st.success(f"📬 **{len(df_ready)}** leads ready")
+            # Ready count banner
+            guessed_count = 0
+            if "email_source" in df_ready.columns:
+                guessed_count = (df_ready["email_source"] == "guessed").sum()
 
-            show_ready = [
-                c for c in
-                ["id", "business_name", "email", "city", "country", "keyword"]
-                if c in df_ready.columns
-            ]
-            st.dataframe(df_ready[show_ready], use_container_width=True, height=280)
+            st.markdown(
+                f"""
+                <div style="background:white; border-radius:14px; padding:18px 24px;
+                            border-left:5px solid #16a34a; margin-bottom:16px;
+                            box-shadow:0 2px 8px rgba(0,0,0,0.06); display:flex;
+                            align-items:center; gap:16px;">
+                  <div style="font-size:36px;">📬</div>
+                  <div>
+                    <div style="font-size:22px; font-weight:800; color:#0f172a;">
+                      {len(df_ready)} leads ready to send
+                    </div>
+                    <div style="font-size:13px; color:#64748b; margin-top:2px;">
+                      {"⚠️ " + str(guessed_count) + " have guessed emails (pattern fallback) — "
+                       "lower deliverability expected. " if guessed_count else ""}
+                      All have status = New. None will be sent twice.
+                    </div>
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
-            sc1, sc2 = st.columns([3, 1])
+            if "email_source" in df_ready.columns:
+                df_ready["Email ✔"] = df_ready["email_source"].map(
+                    lambda s: "✅ Found" if s == "found" else ("🤔 Guessed" if s == "guessed" else "—")
+                )
+            show_ready = [c for c in
+                ["id","business_name","email","Email ✔","city","country","keyword"]
+                if c in df_ready.columns]
+            st.dataframe(df_ready[show_ready], use_container_width=True, height=260)
+
+            sc1, sc2, sc3 = st.columns([3, 1, 1])
             with sc1:
                 max_send = st.slider(
                     "Emails to send this session",
-                    1, min(200, len(df_ready)),
-                    min(20, len(df_ready)),
-                    help="Start small — increase as your account warms up.",
+                    1, min(200, len(df_ready)), min(20, len(df_ready)),
+                    help="Start with 20–30/day and ramp up weekly.",
                 )
             with sc2:
                 est_mins = max(1, (max_send * delay_sec) // 60)
                 st.metric("Est. time", f"~{est_mins} min")
+            with sc3:
+                st.metric("Delay", f"{delay_sec}s")
 
-            st.warning(
-                f"You are about to send **{max_send} emails** with a **{delay_sec}s delay** "
-                f"between each one. Estimated completion: ~{est_mins} minutes."
+            st.markdown(
+                f"""
+                <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:10px;
+                            padding:14px 18px; font-size:13px; color:#92400e; margin-bottom:12px;">
+                  ⚡ Sending <b>{max_send} emails</b> with <b>{delay_sec}s gap</b> between each.
+                  Est. time: <b>~{est_mins} minutes</b>.
+                  Each lead will be marked <b>Sent</b> immediately after delivery.
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
 
-            if st.button(f"🚀 Send {max_send} emails now", type="primary"):
-                batch = df_ready.head(max_send).copy()
+            if st.button(f"🚀 Send {max_send} emails now", type="primary", use_container_width=True):
+                batch    = df_ready.head(max_send).copy()
                 log_area = st.empty()
                 send_logs: list = []
 
                 def s_log(msg: str):
                     send_logs.append(msg)
-                    log_area.markdown(
-                        "```\n" + "\n".join(send_logs[-30:]) + "\n```"
-                    )
+                    log_area.markdown("```\n" + "\n".join(send_logs[-30:]) + "\n```")
 
                 result = send_batch(
                     leads_df=batch,
@@ -816,11 +930,13 @@ with tab_send:
                 )
 
                 rc1, rc2 = st.columns(2)
-                rc1.metric("✅ Emails sent",  result["sent"])
-                rc2.metric("❌ Failed",        result["failed"])
+                with rc1:
+                    _stat_card("✅", "Emails Sent", result["sent"], "#16a34a")
+                with rc2:
+                    _stat_card("❌", "Failed", result["failed"], "#dc2626")
 
                 if result["errors"]:
-                    with st.expander("View errors"):
+                    with st.expander("View error details"):
                         for err in result["errors"]:
                             st.text(err)
 
@@ -829,54 +945,103 @@ with tab_send:
 # TAB 4 – Analytics
 # ═════════════════════════════════════════════════════════════════════════════
 with tab_analytics:
-    st.header("📊 Analytics")
+    st.markdown("### 📊 Analytics Dashboard")
 
-    stats = get_stats()
+    # Stat cards row
+    a1, a2, a3, a4, a5 = st.columns(5)
+    with a1:
+        _stat_card("🏢", "Total Leads",   stats.get("total",    0), "#2563eb")
+    with a2:
+        _stat_card("🔵", "New (unsent)",  stats.get("new",      0), "#7c3aed",
+                   "→ go to Send Emails")
+    with a3:
+        _stat_card("✅", "Emails Sent",   stats.get("sent",     0), "#16a34a")
+    with a4:
+        _stat_card("❌", "Failed",        stats.get("failed",   0), "#dc2626")
+    with a5:
+        _stat_card("📭", "No Email",      stats.get("no_email", 0), "#d97706")
 
-    m1, m2, m3, m4, m5 = st.columns(5)
-    m1.metric("Total Leads",    stats.get("total",    0))
-    m2.metric("New (unsent)",   stats.get("new",      0))
-    m3.metric("Emails Sent",    stats.get("sent",     0))
-    m4.metric("Failed",         stats.get("failed",   0))
-    m5.metric("No Email",       stats.get("no_email", 0))
-
-    st.divider()
+    st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
 
     df_all = get_leads()
     if df_all.empty:
         st.info("No data yet. Start by finding leads.")
     else:
-        ac1, ac2 = st.columns(2)
+        # Email find rate
+        has_email  = df_all["email"].notna() & (df_all["email"] != "")
+        found_pct  = round(has_email.sum() / len(df_all) * 100, 1)
 
+        confirmed = guessed = 0
+        if "email_source" in df_all.columns:
+            confirmed = int((df_all["email_source"] == "found").sum())
+            guessed   = int((df_all["email_source"] == "guessed").sum())
+
+        st.markdown(
+            f"""
+            <div style="background:white; border-radius:14px; padding:20px 24px;
+                        box-shadow:0 2px 8px rgba(0,0,0,0.06); margin-bottom:16px;">
+              <div style="font-weight:700; color:#0f172a; margin-bottom:12px; font-size:15px;">
+                📧 Email Coverage
+              </div>
+              <div style="background:#f1f5f9; border-radius:100px; height:12px; overflow:hidden; margin-bottom:12px;">
+                <div style="background:linear-gradient(90deg,#16a34a,#22c55e);
+                            width:{found_pct}%; height:100%; border-radius:100px;"></div>
+              </div>
+              <div style="display:flex; gap:24px; flex-wrap:wrap; font-size:13px;">
+                <span><b style="color:#0f172a; font-size:22px;">{found_pct}%</b>
+                      <span style="color:#64748b;"> of leads have an email</span></span>
+                <span style="background:#f0fdf4; color:#16a34a; border-radius:8px;
+                             padding:4px 12px; font-weight:700;">
+                  ✅ {confirmed} confirmed on site</span>
+                <span style="background:#fffbeb; color:#92400e; border-radius:8px;
+                             padding:4px 12px; font-weight:700;">
+                  🤔 {guessed} guessed (pattern)</span>
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        ac1, ac2 = st.columns(2)
         with ac1:
-            st.subheader("Leads by Country")
+            st.markdown(
+                "<div style='background:white; border-radius:14px; padding:20px 24px; "
+                "box-shadow:0 2px 8px rgba(0,0,0,0.06); margin-bottom:16px;'>"
+                "<div style='font-weight:700; color:#0f172a; margin-bottom:12px;'>🌍 Leads by Country</div>",
+                unsafe_allow_html=True,
+            )
             cc = df_all.groupby("country").size().reset_index(name="count")
-            st.bar_chart(cc.set_index("country"))
+            st.bar_chart(cc.set_index("country"), color="#2563eb")
+            st.markdown("</div>", unsafe_allow_html=True)
 
         with ac2:
-            st.subheader("Leads by Status")
-            sc = df_all.groupby("status").size().reset_index(name="count")
-            st.bar_chart(sc.set_index("status"))
+            st.markdown(
+                "<div style='background:white; border-radius:14px; padding:20px 24px; "
+                "box-shadow:0 2px 8px rgba(0,0,0,0.06); margin-bottom:16px;'>"
+                "<div style='font-weight:700; color:#0f172a; margin-bottom:12px;'>📈 Leads by Status</div>",
+                unsafe_allow_html=True,
+            )
+            sc_df = df_all.groupby("status").size().reset_index(name="count")
+            st.bar_chart(sc_df.set_index("status"), color="#7c3aed")
+            st.markdown("</div>", unsafe_allow_html=True)
 
-        st.subheader("Leads by Keyword")
-        kc = df_all.groupby("keyword").size().reset_index(name="count")
-        st.bar_chart(kc.set_index("keyword"))
-
-        st.subheader("Email find rate")
-        has_email = df_all["email"].notna() & (df_all["email"] != "")
-        found_pct  = round(has_email.sum() / len(df_all) * 100, 1) if len(df_all) else 0
-        st.progress(
-            int(found_pct),
-            text=f"{found_pct}% of leads have an email address",
+        st.markdown(
+            "<div style='background:white; border-radius:14px; padding:20px 24px; "
+            "box-shadow:0 2px 8px rgba(0,0,0,0.06); margin-bottom:16px;'>"
+            "<div style='font-weight:700; color:#0f172a; margin-bottom:12px;'>🔑 Leads by Keyword</div>",
+            unsafe_allow_html=True,
         )
-        if "email_source" in df_all.columns:
-            confirmed = (df_all["email_source"] == "found").sum()
-            guessed   = (df_all["email_source"] == "guessed").sum()
-            ec1, ec2 = st.columns(2)
-            ec1.metric("✅ Confirmed emails (found on site)", confirmed)
-            ec2.metric("🤔 Guessed emails (pattern fallback)", guessed)
+        kc = df_all.groupby("keyword").size().reset_index(name="count")
+        st.bar_chart(kc.set_index("keyword"), color="#16a34a")
+        st.markdown("</div>", unsafe_allow_html=True)
 
-        st.subheader("Daily lead volume")
+        st.markdown(
+            "<div style='background:white; border-radius:14px; padding:20px 24px; "
+            "box-shadow:0 2px 8px rgba(0,0,0,0.06);'>"
+            "<div style='font-weight:700; color:#0f172a; margin-bottom:12px;'>📅 Daily Lead Volume</div>",
+            unsafe_allow_html=True,
+        )
         df_all["date"] = pd.to_datetime(df_all["created_at"]).dt.date
         daily = df_all.groupby("date").size().reset_index(name="leads")
-        st.line_chart(daily.set_index("date"))
+        st.line_chart(daily.set_index("date"), color="#2563eb")
+        st.markdown("</div>", unsafe_allow_html=True)
