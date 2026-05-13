@@ -408,6 +408,81 @@ def scrape_uae(
     return results
 
 
+# ── Serper.dev Google Maps API  (FREE – 2500/month, no credit card) ───────
+
+def scrape_serper(
+    keyword: str, location: str, api_key: str,
+    max_results: int = 100,
+    log_cb: Optional[Callable] = None,
+) -> List[Dict]:
+    """
+    Serper.dev Google Maps API — returns real Google Maps business listings.
+    Free: 2,500 searches/month. No credit card.
+    Sign up at: https://serper.dev
+    """
+    results: List[Dict] = []
+    headers = {
+        "X-API-KEY":    api_key,
+        "Content-Type": "application/json",
+    }
+
+    for start in range(0, min(max_results, 100), 10):
+        payload = {
+            "q":    f"{keyword} in {location}",
+            "num":  10,
+        }
+        if start > 0:
+            payload["start"] = start
+
+        try:
+            r = requests.post(
+                "https://google.serper.dev/maps",
+                headers=headers,
+                json=payload,
+                timeout=15,
+            )
+
+            if r.status_code == 401:
+                if log_cb:
+                    log_cb("  ❌ Serper: Invalid API key.")
+                break
+            if r.status_code != 200:
+                if log_cb:
+                    log_cb(f"  ⚠️ Serper HTTP {r.status_code}")
+                break
+
+            data  = r.json()
+            places = data.get("places", [])
+            if not places:
+                break
+
+            for p in places:
+                b = {
+                    "business_name": p.get("title", ""),
+                    "address":       p.get("address", ""),
+                    "phone":         p.get("phoneNumber", ""),
+                    "website":       p.get("website", ""),
+                    "city":          location,
+                    "country":       "",
+                    "keyword":       keyword,
+                    "source":        "Google Maps (Serper)",
+                }
+                results.append(b)
+
+            if log_cb:
+                log_cb(f"  ✅ Serper: {len(places)} businesses (batch {start//10 + 1})")
+
+            if len(places) < 10:
+                break
+
+        except Exception as exc:
+            if log_cb:
+                log_cb(f"  ⚠️ Serper error: {exc}")
+            break
+
+    return results
+
+
 # ── Foursquare Places API  (FREE – 1000 calls/day, no credit card) ────────
 
 def scrape_foursquare(
@@ -693,6 +768,7 @@ def find_businesses(
     location: str,
     country: str,
     max_pages: int = 3,
+    serper_key: str = "",
     yelp_api_key: str = "",
     google_places_key: str = "",
     foursquare_key: str = "",
@@ -700,12 +776,31 @@ def find_businesses(
 ) -> List[Dict]:
     """
     Priority order:
-      1. Foursquare Places API  (FREE, no card, 1000/day – recommended)
-      2. Google Places API      (best quality, needs billing enabled)
-      3. Yelp Fusion API        (good, 500/day free)
-      4. Yellow Pages scrape    (fallback, no key needed)
+      1. Serper.dev  (Google Maps data, FREE 2500/month, no card — best choice)
+      2. Foursquare  (FREE 1000/day, no card)
+      3. Google Places (best quality, needs billing)
+      4. Yelp (500/day free)
+      5. Yellow Pages scrape (no key, last resort)
     """
-    # ── 1. Foursquare (free, no credit card, global) ─────────────────────────
+    country_name = COUNTRY_CODES.get(country, country)
+
+    # ── 1. Serper.dev — Google Maps results, free, no card ───────────────────
+    if serper_key and serper_key.strip():
+        if log_cb:
+            log_cb("🗺️ Using Serper Google Maps (free) …")
+        results = scrape_serper(
+            keyword, location, serper_key.strip(),
+            max_results=max_pages * 10,
+            log_cb=log_cb,
+        )
+        if results:
+            for r in results:
+                r["country"] = country_name
+            return results
+        if log_cb:
+            log_cb("  ⚠️ Serper returned nothing – trying next source.")
+
+    # ── 2. Foursquare ────────────────────────────────────────────────────────
     if foursquare_key and foursquare_key.strip():
         if log_cb:
             log_cb("📍 Using Foursquare Places API (free) …")
@@ -716,15 +811,15 @@ def find_businesses(
         )
         if results:
             for r in results:
-                r["country"] = r.get("country") or COUNTRY_CODES.get(country, country)
+                r["country"] = r.get("country") or country_name
             return results
         if log_cb:
             log_cb("  ⚠️ Foursquare returned nothing – trying next source.")
 
-    # ── 2. Google Places (best quality, needs billing) ───────────────────────
+    # ── 3. Google Places ─────────────────────────────────────────────────────
     if google_places_key and google_places_key.strip():
         if log_cb:
-            log_cb("🗺️ Using Google Places API …")
+            log_cb("🔵 Using Google Places API …")
         results = scrape_google_places(
             keyword, location, google_places_key.strip(),
             max_results=max_pages * 20,
@@ -732,12 +827,12 @@ def find_businesses(
         )
         if results:
             for r in results:
-                r["country"] = COUNTRY_CODES.get(country, country)
+                r["country"] = country_name
             return results
         if log_cb:
             log_cb("  ⚠️ Google Places returned nothing – trying next source.")
 
-    # ── 3. Yelp ──────────────────────────────────────────────────────────────
+    # ── 4. Yelp ──────────────────────────────────────────────────────────────
     if yelp_api_key and yelp_api_key.strip():
         if log_cb:
             log_cb("🟡 Using Yelp Fusion API …")
@@ -745,11 +840,11 @@ def find_businesses(
         if results:
             return results
         if log_cb:
-            log_cb("  ⚠️ Yelp returned nothing – falling back to directory scrape.")
+            log_cb("  ⚠️ Yelp returned nothing – trying directory scrape.")
 
-    # ── 4. Directory scrape (no key fallback) ────────────────────────────────
+    # ── 5. Yellow Pages scrape (last resort) ─────────────────────────────────
     if log_cb:
-        log_cb("🌐 Using Yellow Pages directory scrape …")
+        log_cb("🌐 Trying Yellow Pages directory scrape …")
     scraper_fn = COUNTRY_SCRAPERS.get(country)
     if not scraper_fn:
         if log_cb:

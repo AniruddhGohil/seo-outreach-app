@@ -264,6 +264,21 @@ with st.sidebar:
         key="s_name",
     )
 
+    # ── Serper.dev API key (BEST FREE option – Google Maps data) ─────────────
+    _def_serper = st.secrets.get("serper_key", "")
+    with st.expander("🗺️ Serper API Key  (FREE – best choice)", expanded=bool(_def_serper)):
+        serper_key = st.text_input(
+            "Serper.dev API Key",
+            value=_def_serper,
+            type="password",
+            key="s_serper",
+            help="Free 2,500 Google Maps searches/month. No credit card. serper.dev",
+        )
+        if _def_serper:
+            st.success("✅ Serper active — real Google Maps data!")
+        else:
+            st.info("Get free key at serper.dev — takes 30 seconds, no card needed.")
+
     # ── Foursquare API key (FREE – recommended first choice) ─────────────────
     _def_fsq = st.secrets.get("foursquare_key", "")
     with st.expander("📍 Foursquare API Key  (FREE – recommended)", expanded=bool(_def_fsq)):
@@ -407,6 +422,10 @@ with tab_find:
             log(f"🔎 Searching: '{keyword}' in {location}, {country}")
 
             # Read API keys – sidebar input takes priority, secrets as fallback
+            _serper_key = (
+                st.session_state.get("s_serper", "")
+                or st.secrets.get("serper_key", "")
+            )
             _fsq_key = (
                 st.session_state.get("s_fsq", "")
                 or st.secrets.get("foursquare_key", "")
@@ -425,6 +444,7 @@ with tab_find:
                 location=location.strip(),
                 country=country,
                 max_pages=max_pages,
+                serper_key=_serper_key,
                 foursquare_key=_fsq_key,
                 yelp_api_key=_yelp_key,
                 google_places_key=_gplaces_key,
