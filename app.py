@@ -333,13 +333,23 @@ with tab_find:
 
             log(f"🔎 Searching: '{keyword}' in {location}, {country}")
 
+            # Read keys: prefer sidebar input, fall back to secrets directly
+            _gplaces_key = (
+                st.session_state.get("s_gplaces", "")
+                or st.secrets.get("google_places_key", "")
+            )
+            _yelp_key = (
+                st.session_state.get("s_yelp", "")
+                or st.secrets.get("yelp_api_key", "")
+            )
+
             businesses = find_businesses(
                 keyword=keyword.strip(),
                 location=location.strip(),
                 country=country,
                 max_pages=max_pages,
-                yelp_api_key=st.session_state.get("s_yelp", ""),
-                google_places_key=st.session_state.get("s_gplaces", ""),
+                yelp_api_key=_yelp_key,
+                google_places_key=_gplaces_key,
                 log_cb=log,
             )
 
