@@ -74,32 +74,90 @@ def _login_page() -> bool:
         )
         return False
 
-    # ── Centred login card ───────────────────────────────────────────────────
-    _, card, _ = st.columns([1, 1.1, 1])
-    with card:
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        st.markdown(
-            """
-            <div style='text-align:center; margin-bottom:28px;'>
-                <div style='font-size:58px; margin-bottom:4px;'>🚀</div>
-                <div style='font-size:26px; font-weight:800; color:#1e3a8a; letter-spacing:-.5px;'>
-                    SEO Outreach Engine
-                </div>
-                <div style='font-size:13px; color:#6b7280; margin-top:6px;'>
-                    Private workspace — authorised accounts only
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+    # ── Full-page styled login ───────────────────────────────────────────────
+    st.markdown("""
+    <style>
+    /* Hide Streamlit default chrome on login page */
+    #MainMenu, footer, header { visibility: hidden; }
+    .block-container { padding: 0 !important; max-width: 100% !important; }
 
+    .login-bg {
+        min-height: 100vh;
+        background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #1d4ed8 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 40px 20px;
+    }
+    .login-card {
+        background: rgba(255,255,255,0.97);
+        border-radius: 20px;
+        padding: 48px 44px 40px;
+        max-width: 460px;
+        width: 100%;
+        box-shadow: 0 25px 60px rgba(0,0,0,0.35);
+        text-align: center;
+    }
+    .login-logo { font-size: 64px; margin-bottom: 8px; }
+    .login-title {
+        font-size: 28px; font-weight: 800;
+        color: #0f172a; letter-spacing: -0.5px;
+        margin: 0 0 6px;
+    }
+    .login-sub {
+        font-size: 14px; color: #64748b; margin: 0 0 32px;
+    }
+    .features {
+        display: flex; justify-content: center;
+        gap: 10px; flex-wrap: wrap; margin-bottom: 32px;
+    }
+    .feature-badge {
+        background: #eff6ff; color: #1d4ed8;
+        border: 1px solid #bfdbfe;
+        border-radius: 20px; padding: 5px 14px;
+        font-size: 13px; font-weight: 600;
+    }
+    .divider {
+        border: none; border-top: 1px solid #e2e8f0;
+        margin: 28px 0 24px;
+    }
+    .login-footer {
+        margin-top: 24px; font-size: 12px; color: #94a3b8;
+    }
+    .lock-icon { margin-right: 4px; }
+    </style>
+
+    <div class="login-bg">
+      <div class="login-card">
+        <div class="login-logo">🚀</div>
+        <div class="login-title">SEO Outreach Engine</div>
+        <div class="login-sub">Find leads · Extract emails · Close clients</div>
+
+        <div class="features">
+          <span class="feature-badge">🔍 SEO</span>
+          <span class="feature-badge">🤖 GEO</span>
+          <span class="feature-badge">🎯 AEO</span>
+          <span class="feature-badge">📧 Cold Email</span>
+          <span class="feature-badge">🌍 Global</span>
+        </div>
+
+        <hr class="divider">
+        <div style="font-size:13px; color:#475569; margin-bottom:16px; font-weight:500;">
+          Sign in to access your private workspace
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── Google button (must be a real Streamlit widget) ──────────────────────
+    _, btn_col, _ = st.columns([1, 1.1, 1])
+    with btn_col:
         oauth2 = OAuth2Component(
             CLIENT_ID, CLIENT_SECRET,
             _GOOGLE_AUTH_URL,
-            _GOOGLE_TOKEN_URL, _GOOGLE_TOKEN_URL,   # token + refresh
+            _GOOGLE_TOKEN_URL, _GOOGLE_TOKEN_URL,
             _GOOGLE_REVOKE_URL,
         )
-
         result = oauth2.authorize_button(
             name="Sign in with Google",
             redirect_uri=REDIRECT_URI,
@@ -109,34 +167,34 @@ def _login_page() -> bool:
             key="google_login_btn",
         )
 
-        if result and "token" in result:
-            user_info = _decode_id_token(result["token"].get("id_token", ""))
-            email     = user_info.get("email", "").lower()
-            name      = user_info.get("name", email)
-
-            if not email:
-                st.error("Could not retrieve your email from Google. Please try again.")
-                return False
-
-            if email in ALLOWED_EMAILS:
-                st.session_state["_authenticated"] = True
-                st.session_state["_user_email"]    = email
-                st.session_state["_user_name"]     = name
-                st.rerun()
-            else:
-                st.markdown("<br>", unsafe_allow_html=True)
-                st.error(
-                    f"🚫 **Access denied** for `{email}`.\n\n"
-                    "This Google account has not been granted access. "
-                    "Contact the admin to request access."
-                )
-
         st.markdown(
-            "<div style='text-align:center; margin-top:24px; font-size:12px; color:#9ca3af;'>"
-            "🔒 Secured with Google OAuth 2.0</div>",
+            "<div style='text-align:center; margin-top:16px; font-size:12px; color:#94a3b8;'>"
+            "🔒 Secured with Google OAuth 2.0 &nbsp;·&nbsp; Authorised accounts only"
+            "</div>",
             unsafe_allow_html=True,
         )
-        return False
+
+    if result and "token" in result:
+        user_info = _decode_id_token(result["token"].get("id_token", ""))
+        email     = user_info.get("email", "").lower()
+        name      = user_info.get("name", email)
+
+        if not email:
+            st.error("Could not retrieve your email from Google. Please try again.")
+            return False
+
+        if email in ALLOWED_EMAILS:
+            st.session_state["_authenticated"] = True
+            st.session_state["_user_email"]    = email
+            st.session_state["_user_name"]     = name
+            st.rerun()
+        else:
+            st.error(
+                f"🚫 **Access denied** for `{email}`. "
+                "This account has not been granted access."
+            )
+
+    return False
 
 
 # Block everything below until login succeeds
