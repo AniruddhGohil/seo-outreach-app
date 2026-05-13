@@ -4,6 +4,7 @@ Streamlit web app: find SMB leads → extract emails → send cold outreach.
 
 Deploy free at https://streamlit.io/cloud
 """
+import hmac
 import io
 import time
 
@@ -28,6 +29,61 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Password gate  – stored in Streamlit Cloud Secrets, never in code
+# ─────────────────────────────────────────────────────────────────────────────
+def _check_password() -> bool:
+    """Show a login form and return True only when the correct password is entered."""
+
+    if st.session_state.get("_authenticated"):
+        return True
+
+    # ── Centred login card ───────────────────────────────────────────────────
+    _, card, _ = st.columns([1, 1.4, 1])
+    with card:
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        st.markdown(
+            """
+            <div style='text-align:center; margin-bottom:8px;'>
+                <span style='font-size:52px;'>🚀</span><br>
+                <span style='font-size:24px; font-weight:700; color:#1e3a8a;'>
+                    SEO Outreach Engine
+                </span><br>
+                <span style='font-size:13px; color:#6b7280;'>Private — authorised access only</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        password_input = st.text_input(
+            "Password", type="password", placeholder="Enter your password",
+            label_visibility="collapsed",
+        )
+        login_btn = st.button("Login", type="primary", use_container_width=True)
+
+        if login_btn or password_input:
+            try:
+                correct = st.secrets["app_password"]
+            except KeyError:
+                st.error(
+                    "⚠️ No password configured. "
+                    "Add `app_password = \"yourpassword\"` in Streamlit Cloud → Settings → Secrets."
+                )
+                return False
+
+            if hmac.compare_digest(password_input, correct):
+                st.session_state["_authenticated"] = True
+                st.rerun()
+            else:
+                if password_input:          # only show error after user types something
+                    st.error("❌ Incorrect password. Please try again.")
+        return False
+
+
+if not _check_password():
+    st.stop()          # everything below is hidden until login succeeds
 
 # Bootstrap database
 init_db()
