@@ -1,11 +1,15 @@
 """
 email_finder.py – Extract a contact email from a business website.
 
-Strategy:
-  1. Visit the homepage and check for mailto: links.
-  2. Crawl up to 5 common contact-page paths.
-  3. Fall back to regex search of page text.
+Strategy (in order):
+  1. mailto: links on homepage & contact pages
+  2. Regex over full page text
+  3. Decode obfuscated emails ([at], (at), HTML entities)
+  4. JSON-LD schema.org email field
+  5. Meta tag email fields
+  6. Raw HTML source regex (catches JS-embedded emails)
 """
+import json
 import random
 import re
 import time
@@ -20,32 +24,40 @@ _USER_AGENTS = [
     "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64; rv:125.0) Gecko/20100101 Firefox/125.0",
 ]
 
-_EMAIL_RE = re.compile(
-    r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}"
-)
+_EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")
 
-# Email addresses we never want to return
 _SKIP_DOMAINS = {
     "example.com", "test.com", "domain.com", "email.com",
-    "sentry.io", "wixpress.com", "squarespace.com",
-    "wordpress.com", "shopify.com", "amazonaws.com",
+    "sentry.io", "wixpress.com", "squarespace.com", "wordpress.com",
+    "shopify.com", "amazonaws.com", "googletagmanager.com",
+    "google.com", "facebook.com", "twitter.com", "instagram.com",
+    "schema.org", "w3.org", "jquery.com", "cloudflare.com",
 }
 _SKIP_PREFIXES = {
     "noreply", "no-reply", "donotreply", "do-not-reply",
-    "mailer-daemon", "postmaster", "webmaster", "admin",
-    "abuse", "spam", "bounce", "support",          # keep 'support' borderline; remove if needed
+    "mailer-daemon", "postmaster", "webmaster",
+    "abuse", "spam", "bounce", "privacy", "legal",
 }
+_ASSET_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".js", ".css", ".woff"}
 
 _CONTACT_PATHS = [
-    "/contact", "/contact-us", "/contactus",
-    "/about", "/about-us", "/reach-us", "/get-in-touch",
+    "/contact", "/contact-us", "/contactus", "/contact_us",
+    "/about",   "/about-us",   "/aboutus",
+    "/reach-us", "/get-in-touch", "/getintouch",
+    "/team", "/our-team", "/staff",
+    "/hello", "/enquiry", "/enquiries",
 ]
 
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
 def _clean_email(raw: str) -> Optional[str]:
-    email = raw.lower().strip().rstrip(".")
+    email = raw.lower().strip().rstrip(".").rstrip(",")
     if not _EMAIL_RE.fullmatch(email):
         return None
     domain = email.split("@")[1]
@@ -54,17 +66,32 @@ def _clean_email(raw: str) -> Optional[str]:
         return None
     if prefix in _SKIP_PREFIXES:
         return None
-    # Reject if looks like a file path (image/asset embedded in text)
-    if any(email.endswith(ext) for ext in (".png", ".jpg", ".gif", ".svg", ".js", ".css")):
+    if any(email.endswith(ext) for ext in _ASSET_EXTS):
+        return None
+    # Must have a real TLD (at least 2 chars after last dot)
+    if len(domain.split(".")[-1]) < 2:
         return None
     return email
 
 
-def _fetch(url: str, timeout: int = 10) -> Optional[str]:
+def _decode_obfuscated(text: str) -> str:
+    """Decode common email obfuscation patterns."""
+    text = re.sub(r"\s*\[at\]\s*",   "@", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s*\(at\)\s*",   "@", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s*\{at\}\s*",   "@", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s*\[ at \]\s*", "@", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s*\[dot\]\s*",  ".", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s*\(dot\)\s*",  ".", text, flags=re.IGNORECASE)
+    text = text.replace("&#64;", "@").replace("&#46;", ".").replace("&amp;", "&")
+    return text
+
+
+def _fetch(url: str, timeout: int = 12) -> Optional[str]:
     try:
         headers = {
-            "User-Agent": random.choice(_USER_AGENTS),
-            "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
+            "User-Agent":      random.choice(_USER_AGENTS),
+            "Accept":          "text/html,application/xhtml+xml,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
         }
         r = requests.get(url, headers=headers, timeout=timeout, allow_redirects=True)
         ct = r.headers.get("Content-Type", "")
@@ -76,25 +103,68 @@ def _fetch(url: str, timeout: int = 10) -> Optional[str]:
 
 
 def _emails_from_page(html: str) -> list:
-    """Extract valid emails from raw HTML; prioritise mailto: hrefs."""
-    soup = BeautifulSoup(html, "lxml")
+    """
+    Try every technique to extract emails from a page.
+    Returns deduplicated list, best candidates first.
+    """
+    soup   = BeautifulSoup(html, "lxml")
+    found  = []
 
-    found = []
-    # 1. mailto: links (most reliable)
+    def _add(e):
+        c = _clean_email(e)
+        if c and c not in found:
+            found.append(c)
+
+    # 1. mailto: href links (most reliable)
     for a in soup.find_all("a", href=re.compile(r"^mailto:", re.I)):
-        raw = a["href"].replace("mailto:", "").split("?")[0]
-        cleaned = _clean_email(raw)
-        if cleaned and cleaned not in found:
-            found.append(cleaned)
+        raw = a["href"].replace("mailto:", "").split("?")[0].strip()
+        _add(raw)
 
-    # 2. Regex over visible text (catches obfuscated emails written as plain text)
-    for raw in _EMAIL_RE.findall(soup.get_text()):
-        cleaned = _clean_email(raw)
-        if cleaned and cleaned not in found:
-            found.append(cleaned)
+    # 2. JSON-LD schema.org (many business sites include email here)
+    for script in soup.find_all("script", type="application/ld+json"):
+        try:
+            data = json.loads(script.string or "")
+            if isinstance(data, dict):
+                for key in ("email", "contactEmail"):
+                    val = data.get(key, "")
+                    if val:
+                        _add(val.replace("mailto:", ""))
+            elif isinstance(data, list):
+                for item in data:
+                    if isinstance(item, dict):
+                        for key in ("email", "contactEmail"):
+                            val = item.get(key, "")
+                            if val:
+                                _add(val.replace("mailto:", ""))
+        except Exception:
+            pass
+
+    # 3. Meta tags
+    for meta in soup.find_all("meta"):
+        name    = (meta.get("name", "") or meta.get("property", "")).lower()
+        content = meta.get("content", "")
+        if "email" in name and content:
+            _add(content)
+
+    # 4. Regex on visible text (catches plain-text emails)
+    for raw in _EMAIL_RE.findall(soup.get_text(separator=" ")):
+        _add(raw)
+
+    # 5. Obfuscated emails in full page text
+    decoded_text = _decode_obfuscated(soup.get_text(separator=" "))
+    for raw in _EMAIL_RE.findall(decoded_text):
+        _add(raw)
+
+    # 6. Raw HTML source (catches JS-embedded strings like "email":"x@y.com")
+    for raw in _EMAIL_RE.findall(html):
+        _add(raw)
 
     return found
 
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
 def find_email_on_website(website_url: str) -> Optional[str]:
     """
@@ -104,18 +174,17 @@ def find_email_on_website(website_url: str) -> Optional[str]:
     if not website_url:
         return None
 
-    # Normalise URL
     if not website_url.startswith(("http://", "https://")):
         website_url = "https://" + website_url
 
     try:
         parsed = urlparse(website_url)
-        base = f"{parsed.scheme}://{parsed.netloc}"
+        base   = f"{parsed.scheme}://{parsed.netloc}"
     except Exception:
         return None
 
     pages_to_try = [website_url] + [urljoin(base, p) for p in _CONTACT_PATHS]
-    seen: set = set()
+    seen: set    = set()
 
     for url in pages_to_try:
         if url in seen:
@@ -128,8 +197,8 @@ def find_email_on_website(website_url: str) -> Optional[str]:
 
         emails = _emails_from_page(html)
         if emails:
-            return emails[0]   # return first / best hit
+            return emails[0]
 
-        time.sleep(random.uniform(0.4, 1.2))
+        time.sleep(random.uniform(0.3, 0.8))
 
     return None

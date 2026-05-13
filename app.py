@@ -190,6 +190,124 @@ if not _login_page():
 init_db()
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Global app CSS  (applied after login)
+# ─────────────────────────────────────────────────────────────────────────────
+st.markdown("""
+<style>
+/* ── General ── */
+html, body, [class*="css"] { font-family: 'Inter', 'Segoe UI', sans-serif; }
+.stApp { background: #f8fafc; }
+
+/* ── Sidebar ── */
+[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #0f172a 0%, #1e3a8a 100%) !important;
+}
+[data-testid="stSidebar"] * { color: #e2e8f0 !important; }
+[data-testid="stSidebar"] .stTextInput input {
+    background: rgba(255,255,255,0.08) !important;
+    border: 1px solid rgba(255,255,255,0.15) !important;
+    color: #f1f5f9 !important;
+    border-radius: 8px !important;
+}
+[data-testid="stSidebar"] .stTextInput label { color: #94a3b8 !important; }
+[data-testid="stSidebar"] .stButton button {
+    background: rgba(255,255,255,0.1) !important;
+    border: 1px solid rgba(255,255,255,0.2) !important;
+    color: #f1f5f9 !important;
+    border-radius: 8px !important;
+    width: 100%;
+}
+[data-testid="stSidebar"] .stButton button:hover {
+    background: rgba(255,255,255,0.18) !important;
+}
+[data-testid="stSidebar"] hr { border-color: rgba(255,255,255,0.1) !important; }
+[data-testid="stSidebar"] .stExpander {
+    background: rgba(255,255,255,0.06) !important;
+    border: 1px solid rgba(255,255,255,0.12) !important;
+    border-radius: 10px !important;
+}
+
+/* ── Tabs ── */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 4px;
+    background: #e2e8f0;
+    padding: 4px;
+    border-radius: 12px;
+}
+.stTabs [data-baseweb="tab"] {
+    border-radius: 9px !important;
+    padding: 8px 20px !important;
+    font-weight: 600 !important;
+    color: #64748b !important;
+    background: transparent !important;
+}
+.stTabs [aria-selected="true"] {
+    background: white !important;
+    color: #1e3a8a !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1) !important;
+}
+
+/* ── Main button ── */
+.stButton [kind="primary"] button, button[kind="primary"] {
+    background: linear-gradient(135deg, #1d4ed8, #2563eb) !important;
+    border: none !important;
+    border-radius: 10px !important;
+    font-weight: 700 !important;
+    font-size: 15px !important;
+    padding: 12px 24px !important;
+    box-shadow: 0 4px 14px rgba(37,99,235,0.35) !important;
+    transition: all 0.2s !important;
+}
+.stButton [kind="primary"] button:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 6px 20px rgba(37,99,235,0.45) !important;
+}
+
+/* ── Metrics ── */
+[data-testid="metric-container"] {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px 20px !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+[data-testid="metric-container"] [data-testid="stMetricValue"] {
+    font-size: 28px !important;
+    font-weight: 800 !important;
+    color: #1e3a8a !important;
+}
+[data-testid="metric-container"] [data-testid="stMetricLabel"] {
+    font-size: 13px !important;
+    color: #64748b !important;
+    font-weight: 500 !important;
+}
+
+/* ── Dataframe ── */
+[data-testid="stDataFrame"] {
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 12px !important;
+    overflow: hidden !important;
+}
+
+/* ── Headers ── */
+h1 { color: #0f172a !important; font-weight: 800 !important; }
+h2 { color: #1e3a8a !important; font-weight: 700 !important; }
+h3 { color: #1e40af !important; font-weight: 600 !important; }
+
+/* ── Log output box ── */
+.stCodeBlock { border-radius: 10px !important; font-size: 12px !important; }
+
+/* ── Info / warning / success ── */
+.stAlert { border-radius: 10px !important; }
+
+/* ── Slider ── */
+[data-testid="stSlider"] [data-baseweb="slider"] div[role="slider"] {
+    background: #2563eb !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Sidebar – global settings
 # ─────────────────────────────────────────────────────────────────────────────
 with st.sidebar:
