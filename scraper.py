@@ -423,70 +423,90 @@ def scrape_foursquare(
     Register free at: https://foursquare.com/developers/
     """
     results: List[Dict] = []
-    endpoint = "https://api.foursquare.com/v3/places/search"
-    headers  = {
+    headers = {
         "Authorization": api_key,
         "Accept":        "application/json",
     }
 
-    limit  = min(50, max_results)
-    offset = 0
+    # ── Step 1: Search for places (basic info) ───────────────────────────────
+    try:
+        r = requests.get(
+            "https://api.foursquare.com/v3/places/search",
+            headers=headers,
+            params={
+                "query": keyword,
+                "near":  location,
+                "limit": min(50, max_results),
+            },
+            timeout=20,
+        )
 
-    while len(results) < max_results:
-        params = {
-            "query":  keyword,
-            "near":   location,
-            "limit":  limit,
-            "offset": offset,
-            "fields": "name,location,tel,website,hours",
+        if r.status_code == 401:
+            if log_cb:
+                log_cb("  ❌ Foursquare: Invalid API key.")
+            return results
+        if r.status_code != 200:
+            if log_cb:
+                log_cb(f"  ⚠️ Foursquare HTTP {r.status_code}: {r.text[:100]}")
+            return results
+
+        places = r.json().get("results", [])
+        if not places:
+            if log_cb:
+                log_cb("  ℹ️ Foursquare: No results found.")
+            return results
+
+        if log_cb:
+            log_cb(f"  📍 {len(places)} businesses found — fetching details …")
+
+    except Exception as exc:
+        if log_cb:
+            log_cb(f"  ⚠️ Foursquare search error: {exc}")
+        return results
+
+    # ── Step 2: Fetch details (website + phone) for each place ───────────────
+    for place in places:
+        fsq_id = place.get("fsq_id", "")
+        loc    = place.get("location", {})
+
+        b = {
+            "business_name": place.get("name", ""),
+            "address": (
+                loc.get("formatted_address", "")
+                or ", ".join(filter(None, [
+                    loc.get("address", ""),
+                    loc.get("locality", ""),
+                    loc.get("region", ""),
+                ]))
+            ),
+            "city":    loc.get("locality", location),
+            "country": loc.get("country", ""),
+            "keyword": keyword,
+            "source":  "Foursquare",
+            "phone":   "",
+            "website": "",
         }
-        try:
-            r    = requests.get(endpoint, headers=headers, params=params, timeout=15)
-            data = r.json()
 
-            if r.status_code == 401:
-                if log_cb:
-                    log_cb("  ❌ Foursquare: Invalid API key.")
-                break
-            if r.status_code != 200:
-                if log_cb:
-                    log_cb(f"  ⚠️ Foursquare: HTTP {r.status_code}")
-                break
+        # Details call for phone + website
+        if fsq_id:
+            try:
+                det = requests.get(
+                    f"https://api.foursquare.com/v3/places/{fsq_id}",
+                    headers=headers,
+                    params={"fields": "tel,website"},
+                    timeout=10,
+                )
+                if det.status_code == 200:
+                    d = det.json()
+                    b["phone"]   = d.get("tel", "")
+                    b["website"] = d.get("website", "")
+            except Exception:
+                pass  # details are optional; email finder will handle website
 
-            places = data.get("results", [])
-            if not places:
-                break
+        results.append(b)
 
-            for place in places:
-                loc = place.get("location", {})
-                b = {
-                    "business_name": place.get("name", ""),
-                    "phone":         place.get("tel", ""),
-                    "website":       place.get("website", ""),
-                    "address":       ", ".join(filter(None, [
-                                        loc.get("address", ""),
-                                        loc.get("locality", ""),
-                                        loc.get("region", ""),
-                                     ])),
-                    "city":    loc.get("locality", location),
-                    "country": loc.get("country", ""),
-                    "keyword": keyword,
-                    "source":  "Foursquare",
-                }
-                results.append(b)
-
-            if log_cb:
-                log_cb(f"  ✅ Foursquare: {len(places)} businesses (offset {offset})")
-
-            if len(places) < limit:
-                break
-            offset += limit
-
-        except Exception as exc:
-            if log_cb:
-                log_cb(f"  ⚠️ Foursquare error: {exc}")
-            break
-
+    if log_cb:
+        log_cb(f"  ✅ Foursquare total: {len(results)} businesses")
     return results
 
 
