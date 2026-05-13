@@ -206,9 +206,24 @@ with st.sidebar:
         key="s_name",
     )
 
+    # ── Foursquare API key (FREE – recommended first choice) ─────────────────
+    _def_fsq = st.secrets.get("foursquare_key", "")
+    with st.expander("📍 Foursquare API Key  (FREE – recommended)", expanded=bool(_def_fsq)):
+        foursquare_key = st.text_input(
+            "Foursquare Places API Key",
+            value=_def_fsq,
+            type="password",
+            key="s_fsq",
+            help="100% free, no credit card. Register at foursquare.com/developers",
+        )
+        if _def_fsq:
+            st.success("✅ Foursquare active — free 1000 calls/day")
+        else:
+            st.info("Get a free key at foursquare.com/developers — no card needed!")
+
     # ── Google Places API key (best data source) ────────────────────────────
     _def_gplaces = st.secrets.get("google_places_key", "")
-    with st.expander("🗺️ Google Places API Key  (recommended)", expanded=bool(_def_gplaces)):
+    with st.expander("🗺️ Google Places API Key  (optional)", expanded=bool(_def_gplaces)):
         google_places_key = st.text_input(
             "Google Places API Key",
             value=_def_gplaces,
@@ -333,7 +348,11 @@ with tab_find:
 
             log(f"🔎 Searching: '{keyword}' in {location}, {country}")
 
-            # Read keys: prefer sidebar input, fall back to secrets directly
+            # Read API keys – sidebar input takes priority, secrets as fallback
+            _fsq_key = (
+                st.session_state.get("s_fsq", "")
+                or st.secrets.get("foursquare_key", "")
+            )
             _gplaces_key = (
                 st.session_state.get("s_gplaces", "")
                 or st.secrets.get("google_places_key", "")
@@ -348,6 +367,7 @@ with tab_find:
                 location=location.strip(),
                 country=country,
                 max_pages=max_pages,
+                foursquare_key=_fsq_key,
                 yelp_api_key=_yelp_key,
                 google_places_key=_gplaces_key,
                 log_cb=log,

@@ -408,6 +408,88 @@ def scrape_uae(
     return results
 
 
+# ── Foursquare Places API  (FREE – 1000 calls/day, no credit card) ────────
+
+def scrape_foursquare(
+    keyword: str, location: str, api_key: str,
+    max_results: int = 50,
+    log_cb: Optional[Callable] = None,
+) -> List[Dict]:
+    """
+    Foursquare Places API v3.
+    - 100% free, no credit card required.
+    - 1000 API calls/day free.
+    - Global coverage including UAE, AU, NZ, UK, USA.
+    Register free at: https://foursquare.com/developers/
+    """
+    results: List[Dict] = []
+    endpoint = "https://api.foursquare.com/v3/places/search"
+    headers  = {
+        "Authorization": api_key,
+        "Accept":        "application/json",
+    }
+
+    limit  = min(50, max_results)
+    offset = 0
+
+    while len(results) < max_results:
+        params = {
+            "query":  keyword,
+            "near":   location,
+            "limit":  limit,
+            "offset": offset,
+            "fields": "name,location,tel,website,hours",
+        }
+        try:
+            r    = requests.get(endpoint, headers=headers, params=params, timeout=15)
+            data = r.json()
+
+            if r.status_code == 401:
+                if log_cb:
+                    log_cb("  ❌ Foursquare: Invalid API key.")
+                break
+            if r.status_code != 200:
+                if log_cb:
+                    log_cb(f"  ⚠️ Foursquare: HTTP {r.status_code}")
+                break
+
+            places = data.get("results", [])
+            if not places:
+                break
+
+            for place in places:
+                loc = place.get("location", {})
+                b = {
+                    "business_name": place.get("name", ""),
+                    "phone":         place.get("tel", ""),
+                    "website":       place.get("website", ""),
+                    "address":       ", ".join(filter(None, [
+                                        loc.get("address", ""),
+                                        loc.get("locality", ""),
+                                        loc.get("region", ""),
+                                     ])),
+                    "city":    loc.get("locality", location),
+                    "country": loc.get("country", ""),
+                    "keyword": keyword,
+                    "source":  "Foursquare",
+                }
+                results.append(b)
+
+            if log_cb:
+                log_cb(f"  ✅ Foursquare: {len(places)} businesses (offset {offset})")
+
+            if len(places) < limit:
+                break
+            offset += limit
+
+        except Exception as exc:
+            if log_cb:
+                log_cb(f"  ⚠️ Foursquare error: {exc}")
+            break
+
+    return results
+
+
 # ── Yelp Fusion API (optional, free key) ──────────────────────────────────
 
 def scrape_yelp(
@@ -593,15 +675,33 @@ def find_businesses(
     max_pages: int = 3,
     yelp_api_key: str = "",
     google_places_key: str = "",
+    foursquare_key: str = "",
     log_cb: Optional[Callable] = None,
 ) -> List[Dict]:
     """
     Priority order:
-      1. Google Places API  (best — if key provided)
-      2. Yelp Fusion API    (good  — if key provided)
-      3. Yellow Pages scrape (fallback — no key needed)
+      1. Foursquare Places API  (FREE, no card, 1000/day – recommended)
+      2. Google Places API      (best quality, needs billing enabled)
+      3. Yelp Fusion API        (good, 500/day free)
+      4. Yellow Pages scrape    (fallback, no key needed)
     """
-    # ── 1. Google Places (best quality + global coverage) ───────────────────
+    # ── 1. Foursquare (free, no credit card, global) ─────────────────────────
+    if foursquare_key and foursquare_key.strip():
+        if log_cb:
+            log_cb("📍 Using Foursquare Places API (free) …")
+        results = scrape_foursquare(
+            keyword, location, foursquare_key.strip(),
+            max_results=max_pages * 20,
+            log_cb=log_cb,
+        )
+        if results:
+            for r in results:
+                r["country"] = r.get("country") or COUNTRY_CODES.get(country, country)
+            return results
+        if log_cb:
+            log_cb("  ⚠️ Foursquare returned nothing – trying next source.")
+
+    # ── 2. Google Places (best quality, needs billing) ───────────────────────
     if google_places_key and google_places_key.strip():
         if log_cb:
             log_cb("🗺️ Using Google Places API …")
@@ -617,7 +717,7 @@ def find_businesses(
         if log_cb:
             log_cb("  ⚠️ Google Places returned nothing – trying next source.")
 
-    # ── 2. Yelp (good structured data) ──────────────────────────────────────
+    # ── 3. Yelp ──────────────────────────────────────────────────────────────
     if yelp_api_key and yelp_api_key.strip():
         if log_cb:
             log_cb("🟡 Using Yelp Fusion API …")
@@ -627,12 +727,12 @@ def find_businesses(
         if log_cb:
             log_cb("  ⚠️ Yelp returned nothing – falling back to directory scrape.")
 
-    # ── 3. Directory scrape (fallback) ──────────────────────────────────────
+    # ── 4. Directory scrape (no key fallback) ────────────────────────────────
     if log_cb:
         log_cb("🌐 Using Yellow Pages directory scrape …")
     scraper_fn = COUNTRY_SCRAPERS.get(country)
     if not scraper_fn:
         if log_cb:
-            log_cb(f"  ⚠️ No scraper for '{country}'.")
+            log_cb(f"  ⚠️ No scraper available for '{country}'.")
         return []
     return scraper_fn(keyword, location, max_pages, log_cb=log_cb)
