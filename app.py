@@ -206,6 +206,24 @@ with st.sidebar:
         key="s_name",
     )
 
+    # ── Google Places API key (best data source) ────────────────────────────
+    _def_gplaces = st.secrets.get("google_places_key", "")
+    with st.expander("🗺️ Google Places API Key  (recommended)", expanded=bool(_def_gplaces)):
+        google_places_key = st.text_input(
+            "Google Places API Key",
+            value=_def_gplaces,
+            type="password",
+            key="s_gplaces",
+            help=(
+                "Enable 'Places API' in Google Cloud Console → APIs & Services → Library. "
+                "Then create an API key under Credentials. $200 free credit/month."
+            ),
+        )
+        if _def_gplaces:
+            st.success("✅ Google Places API active — best data quality")
+        else:
+            st.info("Add key for best results. Works for AU, NZ, UK, UAE, USA.")
+
     # ── Optional: Yelp API key ───────────────────────────────────────────────
     with st.expander("🟡 Yelp API Key  (optional, better data)"):
         yelp_key = st.text_input(
@@ -321,6 +339,7 @@ with tab_find:
                 country=country,
                 max_pages=max_pages,
                 yelp_api_key=st.session_state.get("s_yelp", ""),
+                google_places_key=st.session_state.get("s_gplaces", ""),
                 log_cb=log,
             )
 

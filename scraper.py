@@ -462,16 +462,127 @@ def scrape_yelp(
     return results
 
 
+# ── Google Places API  (best quality, all countries including UAE) ─────────
+
+def _get_place_details(place_id: str, api_key: str) -> dict:
+    """Fetch phone + website for a single place_id."""
+    try:
+        r = requests.get(
+            "https://maps.googleapis.com/maps/api/place/details/json",
+            params={
+                "place_id": place_id,
+                "fields":   "formatted_phone_number,website",
+                "key":      api_key,
+            },
+            timeout=10,
+        )
+        res = r.json().get("result", {})
+        return {
+            "phone":   res.get("formatted_phone_number", ""),
+            "website": res.get("website", ""),
+        }
+    except Exception:
+        return {"phone": "", "website": ""}
+
+
+def scrape_google_places(
+    keyword: str, location: str, api_key: str,
+    max_results: int = 60,
+    log_cb: Optional[Callable] = None,
+) -> List[Dict]:
+    """
+    Google Places Text Search API.
+    – $200 free credit/month (~6 000 text-search calls + details).
+    – Works for AU, NZ, UK, UAE, USA and everywhere else.
+    Enable 'Places API' in Google Cloud Console → APIs & Services → Library.
+    """
+    results: List[Dict] = []
+    endpoint = "https://maps.googleapis.com/maps/api/place/textsearch/json"
+    params   = {"query": f"{keyword} in {location}", "key": api_key}
+
+    page_num = 1
+    while len(results) < max_results:
+        try:
+            r    = requests.get(endpoint, params=params, timeout=15)
+            data = r.json()
+            status = data.get("status", "")
+
+            if status == "REQUEST_DENIED":
+                if log_cb:
+                    log_cb(f"  ❌ Google Places: {data.get('error_message', 'API key issue')}")
+                break
+            if status == "ZERO_RESULTS":
+                if log_cb:
+                    log_cb("  ℹ️ Google Places: no results for this query.")
+                break
+            if status not in ("OK",):
+                if log_cb:
+                    log_cb(f"  ⚠️ Google Places status: {status}")
+                break
+
+            places = data.get("results", [])
+            if not places:
+                break
+
+            if log_cb:
+                log_cb(f"  📍 Page {page_num}: {len(places)} businesses found – fetching details …")
+
+            for place in places:
+                place_id = place.get("place_id", "")
+                details  = _get_place_details(place_id, api_key) if place_id else {}
+                b = {
+                    "business_name": place.get("name", ""),
+                    "address":       place.get("formatted_address", ""),
+                    "phone":         details.get("phone", ""),
+                    "website":       details.get("website", ""),
+                    "city":          location,
+                    "country":       "",          # filled by router
+                    "keyword":       keyword,
+                    "source":        "Google Places",
+                }
+                results.append(b)
+                if len(results) >= max_results:
+                    break
+
+            next_token = data.get("next_page_token")
+            if not next_token or len(results) >= max_results:
+                break
+
+            # Google requires a short pause before using next_page_token
+            if log_cb:
+                log_cb("  ⏳ Waiting 2 s for next page …")
+            time.sleep(2)
+            params   = {"pagetoken": next_token, "key": api_key}
+            page_num += 1
+
+        except Exception as exc:
+            if log_cb:
+                log_cb(f"  ⚠️ Google Places error: {exc}")
+            break
+
+    if log_cb:
+        log_cb(f"  ✅ Google Places total: {len(results)} businesses")
+    return results
+
+
 # ---------------------------------------------------------------------------
 # Public router
 # ---------------------------------------------------------------------------
 
 COUNTRY_SCRAPERS: Dict[str, Callable] = {
-    "Australia":     scrape_australia,
-    "New Zealand":   scrape_nz,
+    "Australia":      scrape_australia,
+    "New Zealand":    scrape_nz,
     "United Kingdom": scrape_uk,
-    "UAE":           scrape_uae,
-    "USA":           scrape_usa,
+    "UAE":            scrape_uae,
+    "USA":            scrape_usa,
+}
+
+COUNTRY_CODES: Dict[str, str] = {
+    "Australia":      "Australia",
+    "New Zealand":    "New Zealand",
+    "United Kingdom": "United Kingdom",
+    "UAE":            "UAE",
+    "USA":            "USA",
 }
 
 
@@ -481,13 +592,32 @@ def find_businesses(
     country: str,
     max_pages: int = 3,
     yelp_api_key: str = "",
+    google_places_key: str = "",
     log_cb: Optional[Callable] = None,
 ) -> List[Dict]:
     """
-    Main entry point.  Tries Yelp first (if key provided), then falls back
-    to the country-specific Yellow Pages scraper.
+    Priority order:
+      1. Google Places API  (best — if key provided)
+      2. Yelp Fusion API    (good  — if key provided)
+      3. Yellow Pages scrape (fallback — no key needed)
     """
-    # --- Yelp (preferred: structured, reliable data) ---
+    # ── 1. Google Places (best quality + global coverage) ───────────────────
+    if google_places_key and google_places_key.strip():
+        if log_cb:
+            log_cb("🗺️ Using Google Places API …")
+        results = scrape_google_places(
+            keyword, location, google_places_key.strip(),
+            max_results=max_pages * 20,
+            log_cb=log_cb,
+        )
+        if results:
+            for r in results:
+                r["country"] = COUNTRY_CODES.get(country, country)
+            return results
+        if log_cb:
+            log_cb("  ⚠️ Google Places returned nothing – trying next source.")
+
+    # ── 2. Yelp (good structured data) ──────────────────────────────────────
     if yelp_api_key and yelp_api_key.strip():
         if log_cb:
             log_cb("🟡 Using Yelp Fusion API …")
@@ -497,7 +627,9 @@ def find_businesses(
         if log_cb:
             log_cb("  ⚠️ Yelp returned nothing – falling back to directory scrape.")
 
-    # --- Directory scrape ---
+    # ── 3. Directory scrape (fallback) ──────────────────────────────────────
+    if log_cb:
+        log_cb("🌐 Using Yellow Pages directory scrape …")
     scraper_fn = COUNTRY_SCRAPERS.get(country)
     if not scraper_fn:
         if log_cb:
