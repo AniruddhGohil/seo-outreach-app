@@ -430,7 +430,7 @@ with st.sidebar:
     # ── Rate limiting ────────────────────────────────────────────────────────
     st.subheader("⏱️ Rate Limiting")
     delay_sec = st.slider(
-        "Seconds between emails", min_value=30, max_value=180, value=60,
+        "Seconds between emails", min_value=30, max_value=180, value=120,
         help="45–90 s is safe for Gmail. More delay = better deliverability.",
     )
 
