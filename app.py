@@ -60,78 +60,189 @@ def _login_page() -> bool:
         st.error(f"⚠️ Missing secret key: **{exc}**. Go to Streamlit Cloud → Settings → Secrets.")
         return False
 
+    # ── Full-page dark styles ────────────────────────────────────────────────
     st.markdown("""
     <style>
-        #MainMenu, footer, header {visibility: hidden;}
+        #MainMenu, footer, header { visibility: hidden; }
         .stApp {
-            background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 55%, #2563eb 100%);
+            background: #080d1a !important;
             min-height: 100vh;
         }
-        .block-container {padding-top: 4rem !important;}
+        .block-container {
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            max-width: 100% !important;
+        }
+        /* Style the Google OAuth button to match our design */
+        [data-testid="stBaseButton-secondary"],
+        iframe { border-radius: 12px !important; }
+        /* Remove default column gaps on login page */
+        [data-testid="stHorizontalBlock"] { gap: 0 !important; }
     </style>
     """, unsafe_allow_html=True)
 
-    _, card, _ = st.columns([1, 1.2, 1])
-    with card:
+    # ── Split-screen layout ──────────────────────────────────────────────────
+    left_col, right_col = st.columns([1.1, 0.9])
+
+    # ── LEFT: Dark branding panel ────────────────────────────────────────────
+    with left_col:
         st.markdown(
             """
-            <div style="background:white; border-radius:20px; padding:44px 40px 36px;
-                        box-shadow:0 24px 64px rgba(0,0,0,0.4); text-align:center;">
-              <div style="font-size:60px; margin-bottom:10px;">🚀</div>
-              <div style="font-size:26px; font-weight:800; color:#0f172a;
-                          letter-spacing:-0.5px; margin-bottom:6px;">
-                SEO Outreach Engine
+            <div style="
+                background: linear-gradient(160deg, #0f172a 0%, #0c1a3a 60%, #0a1628 100%);
+                min-height: 100vh;
+                padding: 72px 64px;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                position: relative;
+                overflow: hidden;
+            ">
+              <!-- Decorative blobs -->
+              <div style="position:absolute; top:-80px; left:-80px; width:300px; height:300px;
+                          background:radial-gradient(circle, rgba(37,99,235,0.2) 0%, transparent 70%);
+                          border-radius:50%;"></div>
+              <div style="position:absolute; bottom:-100px; right:-60px; width:350px; height:350px;
+                          background:radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%);
+                          border-radius:50%;"></div>
+
+              <!-- Logo + wordmark -->
+              <div style="display:flex; align-items:center; gap:14px; margin-bottom:56px;">
+                <div style="font-size:40px; line-height:1;">🚀</div>
+                <div>
+                  <div style="font-size:20px; font-weight:800; color:white; letter-spacing:-0.3px;">
+                    SEO Outreach Engine
+                  </div>
+                  <div style="font-size:12px; color:#4b6cb7; font-weight:500; margin-top:2px;">
+                    B2B Cold Email · Powered by Google Maps
+                  </div>
+                </div>
               </div>
-              <div style="font-size:13px; color:#64748b; margin-bottom:28px;">
-                Find leads &nbsp;·&nbsp; Extract emails &nbsp;·&nbsp; Close clients
+
+              <!-- Headline -->
+              <div style="font-size:42px; font-weight:900; color:white; line-height:1.15;
+                          letter-spacing:-1.5px; margin-bottom:20px;">
+                Turn searches<br>into
+                <span style="background:linear-gradient(90deg,#60a5fa,#818cf8);
+                             -webkit-background-clip:text; -webkit-text-fill-color:transparent;">
+                  SEO clients
+                </span>
               </div>
-              <div style="display:flex; flex-wrap:wrap; justify-content:center;
-                          gap:8px; margin-bottom:28px;">
-                <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;
-                             border-radius:20px; padding:4px 14px; font-size:12px;
-                             font-weight:600;">🔍 SEO</span>
-                <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;
-                             border-radius:20px; padding:4px 14px; font-size:12px;
-                             font-weight:600;">🤖 GEO</span>
-                <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;
-                             border-radius:20px; padding:4px 14px; font-size:12px;
-                             font-weight:600;">🎯 AEO</span>
-                <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;
-                             border-radius:20px; padding:4px 14px; font-size:12px;
-                             font-weight:600;">📧 Cold Email</span>
+              <div style="font-size:16px; color:#94a3b8; line-height:1.7; margin-bottom:48px;
+                          max-width:400px;">
+                Automatically find small businesses, extract their contact emails,
+                and send personalised SEO pitch emails — all in one place.
               </div>
-              <div style="border-top:1px solid #e2e8f0; margin-bottom:20px;"></div>
-              <div style="font-size:13px; color:#475569; font-weight:500; margin-bottom:4px;">
-                Sign in to access your private workspace
+
+              <!-- Feature list -->
+              <div style="display:flex; flex-direction:column; gap:18px;">
+                <div style="display:flex; align-items:center; gap:14px;">
+                  <div style="width:36px; height:36px; background:rgba(37,99,235,0.2);
+                              border-radius:10px; display:flex; align-items:center;
+                              justify-content:center; font-size:18px; flex-shrink:0;">🗺️</div>
+                  <div>
+                    <div style="font-size:14px; font-weight:700; color:#e2e8f0;">
+                      Google Maps scraping (via Serper)
+                    </div>
+                    <div style="font-size:12px; color:#64748b;">Free 2,500 searches/month · no credit card</div>
+                  </div>
+                </div>
+                <div style="display:flex; align-items:center; gap:14px;">
+                  <div style="width:36px; height:36px; background:rgba(16,185,129,0.2);
+                              border-radius:10px; display:flex; align-items:center;
+                              justify-content:center; font-size:18px; flex-shrink:0;">📧</div>
+                  <div>
+                    <div style="font-size:14px; font-weight:700; color:#e2e8f0;">
+                      Automatic email extraction
+                    </div>
+                    <div style="font-size:12px; color:#64748b;">7 methods incl. Cloudflare decoder</div>
+                  </div>
+                </div>
+                <div style="display:flex; align-items:center; gap:14px;">
+                  <div style="width:36px; height:36px; background:rgba(139,92,246,0.2);
+                              border-radius:10px; display:flex; align-items:center;
+                              justify-content:center; font-size:18px; flex-shrink:0;">🚀</div>
+                  <div>
+                    <div style="font-size:14px; font-weight:700; color:#e2e8f0;">
+                      Gmail cold outreach — $600/month pitch
+                    </div>
+                    <div style="font-size:12px; color:#64748b;">Rate-limited sending · CAN-SPAM compliant</div>
+                  </div>
+                </div>
+                <div style="display:flex; align-items:center; gap:14px;">
+                  <div style="width:36px; height:36px; background:rgba(251,191,36,0.2);
+                              border-radius:10px; display:flex; align-items:center;
+                              justify-content:center; font-size:18px; flex-shrink:0;">📊</div>
+                  <div>
+                    <div style="font-size:14px; font-weight:700; color:#e2e8f0;">
+                      Full leads database & analytics
+                    </div>
+                    <div style="font-size:12px; color:#64748b;">Track status, export CSV, never email twice</div>
+                  </div>
+                </div>
               </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-        st.markdown("<div style='margin-top:12px;'></div>", unsafe_allow_html=True)
-
-        oauth2 = OAuth2Component(
-            CLIENT_ID, CLIENT_SECRET,
-            _GOOGLE_AUTH_URL,
-            _GOOGLE_TOKEN_URL, _GOOGLE_TOKEN_URL,
-            _GOOGLE_REVOKE_URL,
-        )
-        result = oauth2.authorize_button(
-            name="Sign in with Google",
-            redirect_uri=REDIRECT_URI,
-            scope="openid email profile",
-            icon="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg",
-            use_container_width=True,
-            key="google_login_btn",
-        )
-
+    # ── RIGHT: Login panel ───────────────────────────────────────────────────
+    with right_col:
         st.markdown(
-            "<div style='text-align:center; margin-top:14px; font-size:12px; color:#cbd5e1;'>"
-            "🔒 Secured with Google OAuth 2.0 · Authorised accounts only"
-            "</div>",
+            """
+            <div style="
+                background: #0d1424;
+                min-height: 100vh;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                padding: 60px 48px;
+            ">
+              <div style="width:100%; max-width:360px; text-align:center;">
+                <div style="font-size:13px; font-weight:700; color:#3b82f6;
+                            text-transform:uppercase; letter-spacing:2px; margin-bottom:12px;">
+                  Private Workspace
+                </div>
+                <div style="font-size:28px; font-weight:800; color:white;
+                            letter-spacing:-0.5px; margin-bottom:10px;">
+                  Welcome back
+                </div>
+                <div style="font-size:14px; color:#64748b; margin-bottom:36px; line-height:1.6;">
+                  Sign in with your authorised Google account<br>to access your outreach dashboard.
+                </div>
+                <div style="height:1px; background:rgba(255,255,255,0.07); margin-bottom:28px;"></div>
+              </div>
+            </div>
+            """,
             unsafe_allow_html=True,
         )
+
+        # OAuth button — positioned in right column
+        # Use nested columns to center it within the right panel
+        _, btn_center, _ = st.columns([0.5, 3, 0.5])
+        with btn_center:
+            oauth2 = OAuth2Component(
+                CLIENT_ID, CLIENT_SECRET,
+                _GOOGLE_AUTH_URL,
+                _GOOGLE_TOKEN_URL, _GOOGLE_TOKEN_URL,
+                _GOOGLE_REVOKE_URL,
+            )
+            result = oauth2.authorize_button(
+                name="Continue with Google",
+                redirect_uri=REDIRECT_URI,
+                scope="openid email profile",
+                icon="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg",
+                use_container_width=True,
+                key="google_login_btn",
+            )
+
+            st.markdown(
+                "<div style='text-align:center; margin-top:20px; font-size:12px; color:#334155;'>"
+                "🔒 Google OAuth 2.0 &nbsp;·&nbsp; Authorised accounts only"
+                "</div>",
+                unsafe_allow_html=True,
+            )
 
     if result and "token" in result:
         user_info = _decode_id_token(result["token"].get("id_token", ""))
@@ -148,7 +259,7 @@ def _login_page() -> bool:
             st.session_state["_user_name"]     = name
             st.rerun()
         else:
-            st.error(f"🚫 **Access denied** for `{email}`. This account has not been granted access.")
+            st.error(f"🚫 Access denied for `{email}`. This account has not been granted access.")
 
     return False
 
