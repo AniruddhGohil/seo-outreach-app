@@ -74,84 +74,69 @@ def _login_page() -> bool:
         )
         return False
 
-    # ── Full-page styled login ───────────────────────────────────────────────
+    # ── Page background ──────────────────────────────────────────────────────
     st.markdown("""
     <style>
-    /* Hide Streamlit default chrome on login page */
-    #MainMenu, footer, header { visibility: hidden; }
-    .block-container { padding: 0 !important; max-width: 100% !important; }
-
-    .login-bg {
-        min-height: 100vh;
-        background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #1d4ed8 100%);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 40px 20px;
-    }
-    .login-card {
-        background: rgba(255,255,255,0.97);
-        border-radius: 20px;
-        padding: 48px 44px 40px;
-        max-width: 460px;
-        width: 100%;
-        box-shadow: 0 25px 60px rgba(0,0,0,0.35);
-        text-align: center;
-    }
-    .login-logo { font-size: 64px; margin-bottom: 8px; }
-    .login-title {
-        font-size: 28px; font-weight: 800;
-        color: #0f172a; letter-spacing: -0.5px;
-        margin: 0 0 6px;
-    }
-    .login-sub {
-        font-size: 14px; color: #64748b; margin: 0 0 32px;
-    }
-    .features {
-        display: flex; justify-content: center;
-        gap: 10px; flex-wrap: wrap; margin-bottom: 32px;
-    }
-    .feature-badge {
-        background: #eff6ff; color: #1d4ed8;
-        border: 1px solid #bfdbfe;
-        border-radius: 20px; padding: 5px 14px;
-        font-size: 13px; font-weight: 600;
-    }
-    .divider {
-        border: none; border-top: 1px solid #e2e8f0;
-        margin: 28px 0 24px;
-    }
-    .login-footer {
-        margin-top: 24px; font-size: 12px; color: #94a3b8;
-    }
-    .lock-icon { margin-right: 4px; }
+        #MainMenu, footer, header {visibility: hidden;}
+        .stApp {
+            background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 55%, #2563eb 100%);
+            min-height: 100vh;
+        }
+        .block-container {padding-top: 4rem !important;}
     </style>
-
-    <div class="login-bg">
-      <div class="login-card">
-        <div class="login-logo">🚀</div>
-        <div class="login-title">SEO Outreach Engine</div>
-        <div class="login-sub">Find leads · Extract emails · Close clients</div>
-
-        <div class="features">
-          <span class="feature-badge">🔍 SEO</span>
-          <span class="feature-badge">🤖 GEO</span>
-          <span class="feature-badge">🎯 AEO</span>
-          <span class="feature-badge">📧 Cold Email</span>
-          <span class="feature-badge">🌍 Global</span>
-        </div>
-
-        <hr class="divider">
-        <div style="font-size:13px; color:#475569; margin-bottom:16px; font-weight:500;">
-          Sign in to access your private workspace
-        </div>
-      </div>
-    </div>
     """, unsafe_allow_html=True)
 
-    # ── Google button (must be a real Streamlit widget) ──────────────────────
-    _, btn_col, _ = st.columns([1, 1.1, 1])
-    with btn_col:
+    # ── Centred card ─────────────────────────────────────────────────────────
+    _, card, _ = st.columns([1, 1.2, 1])
+    with card:
+        st.markdown(
+            """
+            <div style="background:white; border-radius:20px; padding:44px 40px 36px;
+                        box-shadow:0 24px 64px rgba(0,0,0,0.4); text-align:center;">
+
+              <div style="font-size:60px; margin-bottom:10px;">🚀</div>
+
+              <div style="font-size:26px; font-weight:800; color:#0f172a;
+                          letter-spacing:-0.5px; margin-bottom:6px;">
+                SEO Outreach Engine
+              </div>
+
+              <div style="font-size:13px; color:#64748b; margin-bottom:28px;">
+                Find leads &nbsp;·&nbsp; Extract emails &nbsp;·&nbsp; Close clients
+              </div>
+
+              <div style="display:flex; flex-wrap:wrap; justify-content:center;
+                          gap:8px; margin-bottom:28px;">
+                <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;
+                             border-radius:20px; padding:4px 14px; font-size:12px;
+                             font-weight:600;">🔍 SEO</span>
+                <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;
+                             border-radius:20px; padding:4px 14px; font-size:12px;
+                             font-weight:600;">🤖 GEO</span>
+                <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;
+                             border-radius:20px; padding:4px 14px; font-size:12px;
+                             font-weight:600;">🎯 AEO</span>
+                <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;
+                             border-radius:20px; padding:4px 14px; font-size:12px;
+                             font-weight:600;">📧 Cold Email</span>
+                <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;
+                             border-radius:20px; padding:4px 14px; font-size:12px;
+                             font-weight:600;">🌍 Global</span>
+              </div>
+
+              <div style="border-top:1px solid #e2e8f0; margin-bottom:20px;"></div>
+
+              <div style="font-size:13px; color:#475569; font-weight:500;
+                          margin-bottom:4px;">
+                Sign in to access your private workspace
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        st.markdown("<div style='margin-top:12px;'></div>", unsafe_allow_html=True)
+
         oauth2 = OAuth2Component(
             CLIENT_ID, CLIENT_SECRET,
             _GOOGLE_AUTH_URL,
@@ -168,8 +153,8 @@ def _login_page() -> bool:
         )
 
         st.markdown(
-            "<div style='text-align:center; margin-top:16px; font-size:12px; color:#94a3b8;'>"
-            "🔒 Secured with Google OAuth 2.0 &nbsp;·&nbsp; Authorised accounts only"
+            "<div style='text-align:center; margin-top:14px; font-size:12px; color:#cbd5e1;'>"
+            "🔒 Secured with Google OAuth 2.0 · Authorised accounts only"
             "</div>",
             unsafe_allow_html=True,
         )
