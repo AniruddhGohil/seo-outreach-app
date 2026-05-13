@@ -173,15 +173,25 @@ with st.sidebar:
         st.rerun()
     st.divider()
 
-    # ── Gmail SMTP ──────────────────────────────────────────────────────────
+    # ── Gmail SMTP  (pre-filled from secrets, editable any time) ───────────
     st.subheader("📧 Gmail SMTP")
+
+    # Load saved defaults from secrets (if set) – user can still override
+    _def_email = st.secrets.get("smtp_email",    "")
+    _def_name  = st.secrets.get("smtp_name",     "")
+    _def_pass  = st.secrets.get("smtp_password", "")
+    _def_yelp  = st.secrets.get("yelp_api_key",  "")
+
     sender_email = st.text_input(
-        "Your Gmail address",
+        "Sending Gmail address",
+        value=_def_email,
         placeholder="you@gmail.com",
         key="s_email",
+        help="Can be any Gmail — doesn't have to match your login Gmail.",
     )
     app_password = st.text_input(
         "Gmail App Password",
+        value=_def_pass,
         type="password",
         key="s_pass",
         help=(
@@ -191,6 +201,7 @@ with st.sidebar:
     )
     sender_name = st.text_input(
         "Your name (shown in From:)",
+        value=_def_name,
         placeholder="John Smith",
         key="s_name",
     )
@@ -199,6 +210,7 @@ with st.sidebar:
     with st.expander("🟡 Yelp API Key  (optional, better data)"):
         yelp_key = st.text_input(
             "Yelp Fusion API Key",
+            value=_def_yelp,
             type="password",
             key="s_yelp",
             help="Free at yelp.com/developers — 500 calls/day. Covers AU/NZ/UK/USA.",
