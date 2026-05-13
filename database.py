@@ -1,5 +1,6 @@
 """
 database.py – SQLite persistence layer for leads.
+Schema version: 2 (email_source column, is_duplicate_lead helper)
 """
 import sqlite3
 import pandas as pd
