@@ -60,204 +60,166 @@ def _login_page() -> bool:
         st.error(f"⚠️ Missing secret key: **{exc}**. Go to Streamlit Cloud → Settings → Secrets.")
         return False
 
-    # ── Full-page dark styles — strip ALL Streamlit default padding ──────────
+    # ── Full-page CSS ─────────────────────────────────────────────────────────
     st.markdown("""
     <style>
-        #MainMenu, footer, header { visibility: hidden; }
+        /* Hide Streamlit chrome */
+        #MainMenu, footer, header,
+        [data-testid="stToolbar"],
+        [data-testid="stDecoration"],
+        [data-testid="stStatusWidget"] { display: none !important; }
 
-        /* Full-screen dark background */
-        html, body, .stApp { background: #080d1a !important; }
+        html, body, .stApp { background: #080d1a !important; overflow-x: hidden; }
 
-        /* Nuke every layer of Streamlit's default padding */
-        .stApp > .main {
-            padding: 0 !important;
-            margin: 0 !important;
-        }
-        .block-container {
-            padding: 0 !important;
-            margin: 0 !important;
-            max-width: 100% !important;
-            width: 100% !important;
-        }
-        /* The inner div wrappers Streamlit adds */
+        /* Strip every wrapper's padding */
+        .stApp > .main,
+        .block-container,
         .block-container > div,
         .block-container > div > div {
-            padding: 0 !important;
-            margin: 0 !important;
-            width: 100% !important;
+            padding: 0 !important; margin: 0 !important;
+            max-width: 100% !important; width: 100% !important;
         }
 
-        /* Make the columns container stretch full height */
+        /* Columns container: full-height, no gap */
         [data-testid="stHorizontalBlock"] {
             gap: 0 !important;
             min-height: 100vh !important;
             align-items: stretch !important;
+            padding: 0 !important; margin: 0 !important;
+        }
+        [data-testid="stColumn"],
+        [data-testid="stColumn"] > div:first-child {
             padding: 0 !important;
-            margin: 0 !important;
+            min-height: 100vh !important;
         }
 
-        /* Make every column fill the full height */
-        [data-testid="stColumn"] {
-            min-height: 100vh !important;
-            padding: 0 !important;
-        }
-        [data-testid="stColumn"] > div {
-            min-height: 100vh !important;
-            padding: 0 !important;
+        /* LEFT column – dark navy */
+        [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:first-child,
+        [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:first-child > div {
+            background: linear-gradient(160deg,#0f172a 0%,#0c1a3a 60%,#0a1628 100%) !important;
         }
 
-        /* OAuth button border-radius */
-        [data-testid="stBaseButton-secondary"], iframe {
-            border-radius: 12px !important;
+        /* RIGHT column – darker slate */
+        [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child,
+        [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child > div {
+            background: #0d1424 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: center !important;
+            align-items: center !important;
         }
+
+        /* OAuth button polish */
+        [data-testid="stBaseButton-secondary"] { border-radius: 12px !important; }
     </style>
     """, unsafe_allow_html=True)
 
     # ── Split-screen layout ──────────────────────────────────────────────────
     left_col, right_col = st.columns([1.15, 0.85])
 
-    # ── LEFT: Dark branding panel ────────────────────────────────────────────
+    # ── LEFT: Branding panel (pure HTML — works great) ────────────────────────
     with left_col:
-        st.markdown(
-            """
-            <div style="
-                background: linear-gradient(160deg, #0f172a 0%, #0c1a3a 60%, #0a1628 100%);
-                height: 100vh;
-                min-height: 100vh;
-                padding: 64px 72px;
-                display: flex;
-                flex-direction: column;
-                justify-content: center;
-                position: relative;
-                overflow: hidden;
-                box-sizing: border-box;
-            ">
-              <!-- Decorative blobs -->
-              <div style="position:absolute;top:-80px;left:-80px;width:320px;height:320px;
-                background:radial-gradient(circle,rgba(37,99,235,0.18) 0%,transparent 70%);
-                border-radius:50%; pointer-events:none;"></div>
-              <div style="position:absolute;bottom:-100px;right:-60px;width:380px;height:380px;
-                background:radial-gradient(circle,rgba(99,102,241,0.13) 0%,transparent 70%);
-                border-radius:50%; pointer-events:none;"></div>
+        st.markdown("""
+        <div style="padding:64px 72px;display:flex;flex-direction:column;
+                    justify-content:center;min-height:100vh;position:relative;
+                    overflow:hidden;box-sizing:border-box;">
 
-              <!-- Logo + wordmark -->
-              <div style="display:flex;align-items:center;gap:14px;margin-bottom:52px;">
-                <div style="font-size:38px;line-height:1;">🚀</div>
-                <div>
-                  <div style="font-size:19px;font-weight:800;color:white;letter-spacing:-0.3px;">
-                    SEO Outreach Engine
-                  </div>
-                  <div style="font-size:12px;color:#4b6cb7;font-weight:500;margin-top:2px;">
-                    B2B Cold Email · Powered by Google Maps
-                  </div>
-                </div>
-              </div>
+          <!-- Glow blobs -->
+          <div style="position:absolute;top:-60px;left:-60px;width:300px;height:300px;
+            background:radial-gradient(circle,rgba(37,99,235,0.2) 0%,transparent 70%);
+            border-radius:50%;pointer-events:none;"></div>
+          <div style="position:absolute;bottom:-80px;right:-40px;width:360px;height:360px;
+            background:radial-gradient(circle,rgba(99,102,241,0.14) 0%,transparent 70%);
+            border-radius:50%;pointer-events:none;"></div>
 
-              <!-- Headline -->
-              <div style="font-size:clamp(32px,4vw,48px);font-weight:900;color:white;
-                line-height:1.12;letter-spacing:-1.5px;margin-bottom:18px;">
-                Turn searches<br>into
-                <span style="background:linear-gradient(90deg,#60a5fa,#818cf8);
-                  -webkit-background-clip:text;-webkit-text-fill-color:transparent;">
-                  SEO clients
-                </span>
-              </div>
-              <div style="font-size:15px;color:#94a3b8;line-height:1.75;margin-bottom:44px;
-                max-width:420px;">
-                Automatically find small businesses, extract their contact emails,
-                and send personalised SEO pitch emails — all in one place.
-              </div>
+          <!-- Logo -->
+          <div style="display:flex;align-items:center;gap:14px;margin-bottom:52px;">
+            <div style="font-size:38px;line-height:1;">🚀</div>
+            <div>
+              <div style="font-size:19px;font-weight:800;color:white;letter-spacing:-0.3px;">
+                SEO Outreach Engine</div>
+              <div style="font-size:12px;color:#4b6cb7;font-weight:500;margin-top:2px;">
+                B2B Cold Email · Powered by Google Maps</div>
+            </div>
+          </div>
 
-              <!-- Feature list -->
-              <div style="display:flex;flex-direction:column;gap:20px;">
-                <div style="display:flex;align-items:center;gap:14px;">
-                  <div style="width:38px;height:38px;background:rgba(37,99,235,0.18);
-                    border-radius:10px;display:flex;align-items:center;justify-content:center;
-                    font-size:18px;flex-shrink:0;">🗺️</div>
-                  <div>
-                    <div style="font-size:14px;font-weight:700;color:#e2e8f0;">
-                      Google Maps scraping (via Serper)</div>
-                    <div style="font-size:12px;color:#64748b;">Free 2,500 searches/month · no credit card</div>
-                  </div>
-                </div>
-                <div style="display:flex;align-items:center;gap:14px;">
-                  <div style="width:38px;height:38px;background:rgba(16,185,129,0.18);
-                    border-radius:10px;display:flex;align-items:center;justify-content:center;
-                    font-size:18px;flex-shrink:0;">📧</div>
-                  <div>
-                    <div style="font-size:14px;font-weight:700;color:#e2e8f0;">
-                      Automatic email extraction</div>
-                    <div style="font-size:12px;color:#64748b;">7 methods incl. Cloudflare decoder</div>
-                  </div>
-                </div>
-                <div style="display:flex;align-items:center;gap:14px;">
-                  <div style="width:38px;height:38px;background:rgba(139,92,246,0.18);
-                    border-radius:10px;display:flex;align-items:center;justify-content:center;
-                    font-size:18px;flex-shrink:0;">🚀</div>
-                  <div>
-                    <div style="font-size:14px;font-weight:700;color:#e2e8f0;">
-                      Gmail cold outreach — $600/month pitch</div>
-                    <div style="font-size:12px;color:#64748b;">Rate-limited · CAN-SPAM compliant</div>
-                  </div>
-                </div>
-                <div style="display:flex;align-items:center;gap:14px;">
-                  <div style="width:38px;height:38px;background:rgba(251,191,36,0.18);
-                    border-radius:10px;display:flex;align-items:center;justify-content:center;
-                    font-size:18px;flex-shrink:0;">📊</div>
-                  <div>
-                    <div style="font-size:14px;font-weight:700;color:#e2e8f0;">
-                      Full leads database & analytics</div>
-                    <div style="font-size:12px;color:#64748b;">Track status · export CSV · never email twice</div>
-                  </div>
-                </div>
+          <!-- Headline -->
+          <div style="font-size:clamp(30px,3.5vw,46px);font-weight:900;color:white;
+            line-height:1.12;letter-spacing:-1.5px;margin-bottom:18px;">
+            Turn searches<br>into
+            <span style="background:linear-gradient(90deg,#60a5fa,#818cf8);
+              -webkit-background-clip:text;-webkit-text-fill-color:transparent;">SEO clients</span>
+          </div>
+          <div style="font-size:15px;color:#94a3b8;line-height:1.75;max-width:420px;margin-bottom:44px;">
+            Automatically find small businesses, extract their contact emails,
+            and send personalised SEO pitch emails — all in one place.
+          </div>
+
+          <!-- Features -->
+          <div style="display:flex;flex-direction:column;gap:20px;">
+            <div style="display:flex;align-items:center;gap:14px;">
+              <div style="width:38px;height:38px;border-radius:10px;flex-shrink:0;
+                background:rgba(37,99,235,0.18);display:flex;align-items:center;
+                justify-content:center;font-size:18px;">🗺️</div>
+              <div>
+                <div style="font-size:14px;font-weight:700;color:#e2e8f0;">Google Maps scraping (via Serper)</div>
+                <div style="font-size:12px;color:#64748b;">Free 2,500 searches/month · no credit card</div>
               </div>
             </div>
-            """,
-            unsafe_allow_html=True,
-        )
+            <div style="display:flex;align-items:center;gap:14px;">
+              <div style="width:38px;height:38px;border-radius:10px;flex-shrink:0;
+                background:rgba(16,185,129,0.18);display:flex;align-items:center;
+                justify-content:center;font-size:18px;">📧</div>
+              <div>
+                <div style="font-size:14px;font-weight:700;color:#e2e8f0;">Automatic email extraction</div>
+                <div style="font-size:12px;color:#64748b;">7 methods incl. Cloudflare decoder</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:14px;">
+              <div style="width:38px;height:38px;border-radius:10px;flex-shrink:0;
+                background:rgba(139,92,246,0.18);display:flex;align-items:center;
+                justify-content:center;font-size:18px;">🚀</div>
+              <div>
+                <div style="font-size:14px;font-weight:700;color:#e2e8f0;">Gmail cold outreach — $600/month pitch</div>
+                <div style="font-size:12px;color:#64748b;">Rate-limited · CAN-SPAM compliant</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:14px;">
+              <div style="width:38px;height:38px;border-radius:10px;flex-shrink:0;
+                background:rgba(251,191,36,0.18);display:flex;align-items:center;
+                justify-content:center;font-size:18px;">📊</div>
+              <div>
+                <div style="font-size:14px;font-weight:700;color:#e2e8f0;">Full leads database & analytics</div>
+                <div style="font-size:12px;color:#64748b;">Track status · export CSV · never email twice</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
 
-    # ── RIGHT: Login panel ───────────────────────────────────────────────────
+    # ── RIGHT: Login panel — Streamlit-native elements (button must flow here) ──
     with right_col:
-        # Top spacer — pushes content to vertical centre
-        st.markdown(
-            """
-            <div style="
-                background:#0d1424;
-                height:100vh;
-                min-height:100vh;
-                display:flex;
-                flex-direction:column;
-                justify-content:center;
-                align-items:center;
-                padding:48px 40px;
-                box-sizing:border-box;
-            ">
-              <div style="width:100%;max-width:340px;text-align:center;">
-                <div style="font-size:12px;font-weight:700;color:#3b82f6;
-                  text-transform:uppercase;letter-spacing:2px;margin-bottom:14px;">
-                  Private Workspace
-                </div>
-                <div style="font-size:30px;font-weight:800;color:white;
-                  letter-spacing:-0.5px;margin-bottom:10px;">
-                  Welcome back
-                </div>
-                <div style="font-size:14px;color:#64748b;line-height:1.7;margin-bottom:32px;">
-                  Sign in with your authorised Google account
-                  to access your outreach dashboard.
-                </div>
-                <div style="height:1px;background:rgba(255,255,255,0.07);margin-bottom:28px;"></div>
-                <div style="font-size:13px;color:#475569;margin-bottom:16px;">
-                  Click below to continue →
-                </div>
-              </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        # Header text
+        st.markdown("""
+        <div style="text-align:center;padding:0 32px;max-width:340px;margin:0 auto;">
+          <div style="font-size:12px;font-weight:700;color:#3b82f6;
+            text-transform:uppercase;letter-spacing:2px;margin-bottom:14px;">
+            Private Workspace
+          </div>
+          <div style="font-size:30px;font-weight:800;color:white;
+            letter-spacing:-0.5px;margin-bottom:12px;">
+            Welcome back
+          </div>
+          <div style="font-size:14px;color:#64748b;line-height:1.7;margin-bottom:28px;">
+            Sign in with your authorised Google account
+            to access your outreach dashboard.
+          </div>
+          <div style="height:1px;background:rgba(255,255,255,0.08);margin-bottom:28px;"></div>
+        </div>
+        """, unsafe_allow_html=True)
 
-        # Absolutely position the button over the right panel using negative margin trick
-        # We center it horizontally with nested columns
-        _, btn_col, _ = st.columns([0.3, 2.4, 0.3])
+        # OAuth button — centered with nested columns
+        _, btn_col, _ = st.columns([0.4, 2.2, 0.4])
         with btn_col:
             oauth2 = OAuth2Component(
                 CLIENT_ID, CLIENT_SECRET,
@@ -273,12 +235,14 @@ def _login_page() -> bool:
                 use_container_width=True,
                 key="google_login_btn",
             )
-            st.markdown(
-                "<div style='text-align:center;margin-top:18px;font-size:12px;color:#334155;'>"
-                "🔒 Google OAuth 2.0 · Authorised accounts only"
-                "</div>",
-                unsafe_allow_html=True,
-            )
+
+        # Footer
+        st.markdown("""
+        <div style="text-align:center;margin-top:20px;font-size:12px;color:#334155;
+                    padding-bottom:8px;">
+          🔒 Google OAuth 2.0 &nbsp;·&nbsp; Authorised accounts only
+        </div>
+        """, unsafe_allow_html=True)
 
     if result and "token" in result:
         user_info = _decode_id_token(result["token"].get("id_token", ""))
