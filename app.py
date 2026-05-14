@@ -60,189 +60,144 @@ def _login_page() -> bool:
         st.error(f"⚠️ Missing secret key: **{exc}**. Go to Streamlit Cloud → Settings → Secrets.")
         return False
 
-    # ── Full-page CSS ─────────────────────────────────────────────────────────
+    # ── Minimalist light-theme CSS ────────────────────────────────────────────
     st.markdown("""
     <style>
-        /* Hide Streamlit chrome */
         #MainMenu, footer, header,
         [data-testid="stToolbar"],
         [data-testid="stDecoration"],
         [data-testid="stStatusWidget"] { display: none !important; }
 
-        html, body, .stApp { background: #080d1a !important; overflow-x: hidden; }
+        html, body, .stApp { background: #f8f9fb !important; }
 
-        /* Strip every wrapper's padding */
         .stApp > .main,
         .block-container,
         .block-container > div,
         .block-container > div > div {
-            padding: 0 !important; margin: 0 !important;
-            max-width: 100% !important; width: 100% !important;
-        }
-
-        /* Columns container: full-height, no gap */
-        [data-testid="stHorizontalBlock"] {
-            gap: 0 !important;
-            min-height: 100vh !important;
-            align-items: stretch !important;
-            padding: 0 !important; margin: 0 !important;
-        }
-        [data-testid="stColumn"],
-        [data-testid="stColumn"] > div:first-child {
             padding: 0 !important;
-            min-height: 100vh !important;
+            margin: 0 !important;
+            max-width: 100% !important;
+            width: 100% !important;
+            background: #f8f9fb !important;
         }
-
-        /* LEFT column – dark navy */
-        [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:first-child,
-        [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:first-child > div {
-            background: linear-gradient(160deg,#0f172a 0%,#0c1a3a 60%,#0a1628 100%) !important;
-        }
-
-        /* RIGHT column – darker slate */
-        [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child,
-        [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child > div {
-            background: #0d1424 !important;
-            display: flex !important;
-            flex-direction: column !important;
-            justify-content: center !important;
-            align-items: center !important;
-        }
-
-        /* OAuth button polish */
-        [data-testid="stBaseButton-secondary"] { border-radius: 12px !important; }
     </style>
     """, unsafe_allow_html=True)
 
-    # ── Split-screen layout ──────────────────────────────────────────────────
-    left_col, right_col = st.columns([1.15, 0.85])
+    # ── Single centred column ─────────────────────────────────────────────────
+    _, centre, _ = st.columns([1, 1.4, 1])
 
-    # ── LEFT: Branding panel (pure HTML — works great) ────────────────────────
-    with left_col:
+    with centre:
+        # Top breathing room
+        st.markdown("<div style='height:10vh'></div>", unsafe_allow_html=True)
+
+        # ── Logo mark ──────────────────────────────────────────────────────
         st.markdown("""
-        <div style="padding:64px 72px;display:flex;flex-direction:column;
-                    justify-content:center;min-height:100vh;position:relative;
-                    overflow:hidden;box-sizing:border-box;">
-
-          <!-- Glow blobs -->
-          <div style="position:absolute;top:-60px;left:-60px;width:300px;height:300px;
-            background:radial-gradient(circle,rgba(37,99,235,0.2) 0%,transparent 70%);
-            border-radius:50%;pointer-events:none;"></div>
-          <div style="position:absolute;bottom:-80px;right:-40px;width:360px;height:360px;
-            background:radial-gradient(circle,rgba(99,102,241,0.14) 0%,transparent 70%);
-            border-radius:50%;pointer-events:none;"></div>
-
-          <!-- Logo -->
-          <div style="display:flex;align-items:center;gap:14px;margin-bottom:52px;">
-            <div style="font-size:38px;line-height:1;">🚀</div>
-            <div>
-              <div style="font-size:19px;font-weight:800;color:white;letter-spacing:-0.3px;">
-                SEO Outreach Engine</div>
-              <div style="font-size:12px;color:#4b6cb7;font-weight:500;margin-top:2px;">
-                B2B Cold Email · Powered by Google Maps</div>
-            </div>
-          </div>
-
-          <!-- Headline -->
-          <div style="font-size:clamp(30px,3.5vw,46px);font-weight:900;color:white;
-            line-height:1.12;letter-spacing:-1.5px;margin-bottom:18px;">
-            Turn searches<br>into
-            <span style="background:linear-gradient(90deg,#60a5fa,#818cf8);
-              -webkit-background-clip:text;-webkit-text-fill-color:transparent;">SEO clients</span>
-          </div>
-          <div style="font-size:15px;color:#94a3b8;line-height:1.75;max-width:420px;margin-bottom:44px;">
-            Automatically find small businesses, extract their contact emails,
-            and send personalised SEO pitch emails — all in one place.
-          </div>
-
-          <!-- Features -->
-          <div style="display:flex;flex-direction:column;gap:20px;">
-            <div style="display:flex;align-items:center;gap:14px;">
-              <div style="width:38px;height:38px;border-radius:10px;flex-shrink:0;
-                background:rgba(37,99,235,0.18);display:flex;align-items:center;
-                justify-content:center;font-size:18px;">🗺️</div>
-              <div>
-                <div style="font-size:14px;font-weight:700;color:#e2e8f0;">Google Maps scraping (via Serper)</div>
-                <div style="font-size:12px;color:#64748b;">Free 2,500 searches/month · no credit card</div>
-              </div>
-            </div>
-            <div style="display:flex;align-items:center;gap:14px;">
-              <div style="width:38px;height:38px;border-radius:10px;flex-shrink:0;
-                background:rgba(16,185,129,0.18);display:flex;align-items:center;
-                justify-content:center;font-size:18px;">📧</div>
-              <div>
-                <div style="font-size:14px;font-weight:700;color:#e2e8f0;">Automatic email extraction</div>
-                <div style="font-size:12px;color:#64748b;">7 methods incl. Cloudflare decoder</div>
-              </div>
-            </div>
-            <div style="display:flex;align-items:center;gap:14px;">
-              <div style="width:38px;height:38px;border-radius:10px;flex-shrink:0;
-                background:rgba(139,92,246,0.18);display:flex;align-items:center;
-                justify-content:center;font-size:18px;">🚀</div>
-              <div>
-                <div style="font-size:14px;font-weight:700;color:#e2e8f0;">Gmail cold outreach — $600/month pitch</div>
-                <div style="font-size:12px;color:#64748b;">Rate-limited · CAN-SPAM compliant</div>
-              </div>
-            </div>
-            <div style="display:flex;align-items:center;gap:14px;">
-              <div style="width:38px;height:38px;border-radius:10px;flex-shrink:0;
-                background:rgba(251,191,36,0.18);display:flex;align-items:center;
-                justify-content:center;font-size:18px;">📊</div>
-              <div>
-                <div style="font-size:14px;font-weight:700;color:#e2e8f0;">Full leads database & analytics</div>
-                <div style="font-size:12px;color:#64748b;">Track status · export CSV · never email twice</div>
-              </div>
-            </div>
+        <div style="text-align:center; margin-bottom:32px;">
+          <div style="display:inline-flex; align-items:center; justify-content:center;
+                      width:64px; height:64px; background:#f0f4ff;
+                      border-radius:18px; font-size:30px;
+                      box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+            🚀
           </div>
         </div>
         """, unsafe_allow_html=True)
 
-    # ── RIGHT: Login panel — Streamlit-native elements (button must flow here) ──
-    with right_col:
-        # Header text
+        # ── Title + tagline ────────────────────────────────────────────────
         st.markdown("""
-        <div style="text-align:center;padding:0 32px;max-width:340px;margin:0 auto;">
-          <div style="font-size:12px;font-weight:700;color:#3b82f6;
-            text-transform:uppercase;letter-spacing:2px;margin-bottom:14px;">
-            Private Workspace
+        <div style="text-align:center; margin-bottom:40px;">
+          <div style="font-size:26px; font-weight:800; color:#0f172a;
+                      letter-spacing:-0.6px; margin-bottom:8px;
+                      font-family:'Inter','Segoe UI',sans-serif;">
+            SEO Outreach Engine
           </div>
-          <div style="font-size:30px;font-weight:800;color:white;
-            letter-spacing:-0.5px;margin-bottom:12px;">
-            Welcome back
+          <div style="font-size:15px; color:#94a3b8; font-weight:400; line-height:1.6;">
+            Find leads · Extract emails · Close clients
           </div>
-          <div style="font-size:14px;color:#64748b;line-height:1.7;margin-bottom:28px;">
-            Sign in with your authorised Google account
-            to access your outreach dashboard.
-          </div>
-          <div style="height:1px;background:rgba(255,255,255,0.08);margin-bottom:28px;"></div>
         </div>
         """, unsafe_allow_html=True)
 
-        # OAuth button — centered with nested columns
-        _, btn_col, _ = st.columns([0.4, 2.2, 0.4])
-        with btn_col:
-            oauth2 = OAuth2Component(
-                CLIENT_ID, CLIENT_SECRET,
-                _GOOGLE_AUTH_URL,
-                _GOOGLE_TOKEN_URL, _GOOGLE_TOKEN_URL,
-                _GOOGLE_REVOKE_URL,
-            )
-            result = oauth2.authorize_button(
-                name="Continue with Google",
-                redirect_uri=REDIRECT_URI,
-                scope="openid email profile",
-                icon="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg",
-                use_container_width=True,
-                key="google_login_btn",
-            )
-
-        # Footer
+        # ── Card container top ─────────────────────────────────────────────
         st.markdown("""
-        <div style="text-align:center;margin-top:20px;font-size:12px;color:#334155;
-                    padding-bottom:8px;">
-          🔒 Google OAuth 2.0 &nbsp;·&nbsp; Authorised accounts only
+        <div style="background:white; border-radius:20px;
+                    border:1px solid #e8ecf0;
+                    box-shadow:0 4px 24px rgba(0,0,0,0.06);
+                    padding:36px 40px 28px;">
+          <div style="font-size:17px; font-weight:700; color:#0f172a;
+                      margin-bottom:6px; font-family:'Inter','Segoe UI',sans-serif;">
+            Sign in to your workspace
+          </div>
+          <div style="font-size:13px; color:#94a3b8; margin-bottom:28px; line-height:1.6;">
+            Access is restricted to authorised accounts only.
+          </div>
+          <div style="height:1px; background:#f1f5f9; margin-bottom:24px;"></div>
         </div>
         """, unsafe_allow_html=True)
+
+        # ── OAuth button (Streamlit widget — must be outside HTML div) ────
+        oauth2 = OAuth2Component(
+            CLIENT_ID, CLIENT_SECRET,
+            _GOOGLE_AUTH_URL,
+            _GOOGLE_TOKEN_URL, _GOOGLE_TOKEN_URL,
+            _GOOGLE_REVOKE_URL,
+        )
+        result = oauth2.authorize_button(
+            name="Continue with Google",
+            redirect_uri=REDIRECT_URI,
+            scope="openid email profile",
+            icon="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg",
+            use_container_width=True,
+            key="google_login_btn",
+        )
+
+        # ── Card bottom + three trust badges ──────────────────────────────
+        st.markdown("""
+        <div style="background:white; border-radius:0 0 20px 20px;
+                    border:1px solid #e8ecf0; border-top:none;
+                    box-shadow:0 4px 24px rgba(0,0,0,0.06);
+                    padding:20px 40px 28px;">
+          <div style="display:flex; justify-content:center; gap:20px;
+                      flex-wrap:wrap; margin-top:4px;">
+            <span style="font-size:12px; color:#cbd5e1; display:flex;
+                         align-items:center; gap:5px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                   stroke="#cbd5e1" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+              Secured with OAuth 2.0
+            </span>
+            <span style="font-size:12px; color:#cbd5e1;">·</span>
+            <span style="font-size:12px; color:#cbd5e1; display:flex;
+                         align-items:center; gap:5px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                   stroke="#cbd5e1" stroke-width="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+              </svg>
+              Private access only
+            </span>
+            <span style="font-size:12px; color:#cbd5e1;">·</span>
+            <span style="font-size:12px; color:#cbd5e1; display:flex;
+                         align-items:center; gap:5px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                   stroke="#cbd5e1" stroke-width="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              </svg>
+              Google verified
+            </span>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # ── Footer ─────────────────────────────────────────────────────────
+        st.markdown("""
+        <div style="text-align:center; margin-top:28px; font-size:12px; color:#cbd5e1;">
+          SEO Outreach Engine &nbsp;·&nbsp; Built for B2B cold email
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Bottom breathing room
+        st.markdown("<div style='height:10vh'></div>", unsafe_allow_html=True)
 
     if result and "token" in result:
         user_info = _decode_id_token(result["token"].get("id_token", ""))
