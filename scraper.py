@@ -413,12 +413,18 @@ def scrape_uae(
 def scrape_serper(
     keyword: str, location: str, api_key: str,
     max_results: int = 100,
+    skip_top: int = 10,
     log_cb: Optional[Callable] = None,
 ) -> List[Dict]:
     """
     Serper.dev Google Maps API — returns real Google Maps business listings.
     Free: 2,500 searches/month. No credit card.
     Sign up at: https://serper.dev
+
+    skip_top: number of top-ranked results to skip.
+      0  = start from rank #1  (page 1 — already ranking well)
+      10 = start from rank #11 (page 2 — struggling, ideal SEO prospects)
+      20 = start from rank #21 (page 3 — even less visible)
     """
     results: List[Dict] = []
     headers = {
@@ -426,7 +432,8 @@ def scrape_serper(
         "Content-Type": "application/json",
     }
 
-    for start in range(0, min(max_results, 100), 10):
+    start_from = max(0, skip_top)
+    for start in range(start_from, min(start_from + max_results, 200), 10):
         payload = {
             "q":    f"{keyword} in {location}",
             "num":  10,
@@ -768,6 +775,7 @@ def find_businesses(
     location: str,
     country: str,
     max_pages: int = 3,
+    skip_top: int = 10,
     serper_key: str = "",
     yelp_api_key: str = "",
     google_places_key: str = "",
@@ -781,16 +789,21 @@ def find_businesses(
       3. Google Places (best quality, needs billing)
       4. Yelp (500/day free)
       5. Yellow Pages scrape (no key, last resort)
+
+    skip_top: skip the first N Google Maps results (page-1 businesses already
+              rank well and likely don't need SEO). Default 10 = start from page 2.
     """
     country_name = COUNTRY_CODES.get(country, country)
 
     # ── 1. Serper.dev — Google Maps results, free, no card ───────────────────
     if serper_key and serper_key.strip():
         if log_cb:
-            log_cb("🗺️ Using Serper Google Maps (free) …")
+            page_label = "page 1" if skip_top == 0 else f"page {skip_top // 10 + 1}+"
+            log_cb(f"🗺️ Using Serper Google Maps — starting from {page_label} …")
         results = scrape_serper(
             keyword, location, serper_key.strip(),
             max_results=max_pages * 10,
+            skip_top=skip_top,
             log_cb=log_cb,
         )
         if results:

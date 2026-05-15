@@ -574,14 +574,42 @@ with tab_find:
         with c3:
             country = st.selectbox("Country", list(COUNTRY_SCRAPERS.keys()))
 
-        c4, c5, c6 = st.columns([2, 2, 1])
+        c4, c5 = st.columns(2)
         with c4:
             max_pages = st.slider("Results to fetch", 1, 10, 3, help="~10 businesses per page")
         with c5:
             auto_email = st.toggle("Auto-extract emails from websites", value=True)
-        with c6:
-            st.write("")
-            st.write("")
+
+        # Ranking target selector
+        target_option = st.selectbox(
+            "Which ranking positions to target?",
+            options=["page2", "page3", "page1", "page2_3"],
+            format_func=lambda x: {
+                "page2":   "📍 Page 2  (ranks #11–30) — recommended",
+                "page3":   "📍 Page 3  (ranks #21–40) — very cold, low competition",
+                "page2_3": "📍 Page 2 & 3  (ranks #11–40) — widest net",
+                "page1":   "📍 Page 1  (ranks #1–10) — already ranking, not ideal",
+            }[x],
+            help="Page 1 businesses already rank well and may not need SEO. "
+                 "Page 2–3 businesses are visible but struggling — perfect SEO prospects.",
+        )
+        skip_top = {"page1": 0, "page2": 10, "page3": 20, "page2_3": 10}[target_option]
+        extra_pages = {"page1": 0, "page2": 0, "page3": 1, "page2_3": 1}[target_option]
+
+        st.markdown(
+            f"<div style='background:#eff6ff;border-radius:8px;padding:10px 14px;"
+            f"font-size:13px;color:#1d4ed8;margin-top:4px;'>"
+            f"<b>Targeting strategy:</b> "
+            f"{'Skipping top ' + str(skip_top) + ' results — ' if skip_top else 'Including all results — '}"
+            + {
+                "page2":   "businesses ranked #11–30. Have web presence but not ranking → ideal SEO clients.",
+                "page3":   "businesses ranked #21–40. Barely visible online → high need, less competition.",
+                "page2_3": "businesses ranked #11–40. Widest prospect pool across pages 2 & 3.",
+                "page1":   "top-ranked businesses. They may already have good SEO — lower conversion expected.",
+            }[target_option]
+            + "</div>",
+            unsafe_allow_html=True,
+        )
 
     if st.button("Find Leads", type="primary", use_container_width=True):
         if not keyword.strip():
@@ -606,7 +634,9 @@ with tab_find:
 
             businesses = find_businesses(
                 keyword=keyword.strip(), location=location.strip(), country=country,
-                max_pages=max_pages, serper_key=_serper_key, foursquare_key=_fsq_key,
+                max_pages=max_pages + extra_pages,
+                skip_top=skip_top,
+                serper_key=_serper_key, foursquare_key=_fsq_key,
                 yelp_api_key=_yelp_key, google_places_key=_gplaces_key, log_cb=log,
             )
 
