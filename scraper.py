@@ -469,6 +469,8 @@ def scrape_serper(
                     "address":       p.get("address", ""),
                     "phone":         p.get("phoneNumber", ""),
                     "website":       p.get("website", ""),
+                    # Serper sometimes includes email directly from Google Business Profile
+                    "email":         p.get("email", "") or p.get("emailAddress", ""),
                     "city":          location,
                     "country":       "",
                     "keyword":       keyword,
