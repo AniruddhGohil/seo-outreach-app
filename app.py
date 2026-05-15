@@ -393,17 +393,18 @@ def _card(content_html: str):
 
 
 def _stat_card(label: str, value, color: str, sub: str = ""):
-    sub_html = (f"<div style='font-size:12px;color:#9ca3af;margin-top:4px;'>{sub}</div>"
+    sub_html = (f'<div style="font-size:12px;color:#9ca3af;margin-top:4px;">{sub}</div>'
                 if sub else "")
-    dot = f"<span style='display:inline-block;width:8px;height:8px;border-radius:50%;background:{color};margin-right:6px;vertical-align:middle;'></span>"
+    dot = (f'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;'
+           f'background:{color};margin-right:6px;vertical-align:middle;"></span>')
     st.markdown(
-        f"""<div style="background:white;border-radius:12px;padding:20px 24px;
-            border:1px solid #e9ecef;height:100%;">
-          <div style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;
-              letter-spacing:0.7px;margin-bottom:10px;">{dot}{label}</div>
-          <div style="font-size:34px;font-weight:800;color:#111827;line-height:1;">{value}</div>
-          {sub_html}
-        </div>""",
+        f'<div style="background:white;border-radius:12px;padding:20px 24px;'
+        f'border:1px solid #e9ecef;">'
+        f'<div style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;'
+        f'letter-spacing:0.7px;margin-bottom:10px;">{dot}{label}</div>'
+        f'<div style="font-size:34px;font-weight:800;color:#111827;line-height:1;">{value}</div>'
+        f'{sub_html}'
+        f'</div>',
         unsafe_allow_html=True,
     )
 
