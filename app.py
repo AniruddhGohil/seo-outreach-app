@@ -17,14 +17,21 @@ from streamlit_oauth import OAuth2Component
 import bg_state
 from database import (
     delete_leads, get_lead_by_email, get_lead_by_id, get_leads,
-    get_leads_with_email, get_search_history, get_stats, init_db,
-    insert_lead, is_duplicate_lead, save_search, set_leads_queued,
-    update_search_result, update_status, delete_search_history,
+    get_leads_for_followup, get_leads_with_email, get_search_history,
+    get_stats, init_db, insert_lead, is_duplicate_lead, record_followup,
+    save_search, set_leads_queued, update_search_result, update_status,
+    update_tracking, delete_search_history,
 )
 from email_finder import find_email_on_website
+import brevo_sender
 from email_sender import send_email as _smtp_send_one
 from scraper import COUNTRY_SCRAPERS, find_businesses
-from templates import EMAIL_TEMPLATE_HTML, EMAIL_TEMPLATE_TEXT, SUBJECT_LINES
+from templates import (
+    EMAIL_TEMPLATE_HTML, SUBJECT_LINES,
+    TEMPLATE_OPTIONS, FOLLOWUP_OPTIONS,
+    build_html, build_text,
+    get_random_subject, get_followup_subject,
+)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -37,13 +44,17 @@ def _background_send_worker(
     app_password: str,
     sender_name: str,
     delay_secs: int,
+    template: str = "short",
+    brevo_key: str = "",
+    is_followup: int = 0,     # 0 = first touch, 1 = follow-up 1, 2 = follow-up 2
 ):
     """
-    Runs in a daemon thread.  Sends one email per lead_id, updating the DB
-    and bg_state.STATE after each send.  Respects cancel_requested flag.
+    Daemon thread: sends one email per lead_id via Brevo (preferred) or Gmail SMTP.
+    Respects cancel_requested flag between sends.
     """
+    use_brevo = bool(brevo_key)
+
     for i, lead_id in enumerate(lead_ids):
-        # ── Check for cancellation ────────────────────────────────────────
         with bg_state.LOCK:
             if bg_state.STATE["cancel_requested"]:
                 break
@@ -54,21 +65,66 @@ def _background_send_worker(
                 bg_state.STATE["done"] += 1
             continue
 
-        # ── Update "currently sending" display ────────────────────────────
+        biz_name  = lead.get("business_name", "")
+        recipient = lead["email"]
+
         with bg_state.LOCK:
-            bg_state.STATE["current_biz"]   = lead.get("business_name", "")
-            bg_state.STATE["current_email"] = lead.get("email", "")
+            bg_state.STATE["current_biz"]   = biz_name
+            bg_state.STATE["current_email"] = recipient
 
-        # ── Send ──────────────────────────────────────────────────────────
-        ok, msg = _smtp_send_one(
-            sender_email=sender_email,
-            app_password=app_password,
-            recipient_email=lead["email"],
-            business_name=lead.get("business_name", ""),
-            sender_name=sender_name,
-        )
+        # ── Build email content from template ─────────────────────────────
+        tpl_key = f"followup{is_followup}" if is_followup else template
+        html_body = build_html(tpl_key, biz_name, sender_name, sender_email)
+        text_body = build_text(tpl_key, biz_name, sender_name, sender_email)
+        subject   = (get_followup_subject(biz_name, is_followup)
+                     if is_followup else get_random_subject(biz_name))
 
-        update_status(lead_id, "sent" if ok else "failed")
+        # ── Send via Brevo or Gmail SMTP ──────────────────────────────────
+        message_id = ""
+        if use_brevo:
+            ok, result = brevo_sender.send_email(
+                api_key=brevo_key,
+                sender_email=sender_email,
+                sender_name=sender_name,
+                recipient_email=recipient,
+                recipient_name=biz_name,
+                subject=subject,
+                html_content=html_body,
+                text_content=text_body,
+            )
+            if ok:
+                message_id = result
+                # Sync contact to Brevo CRM
+                try:
+                    brevo_sender.upsert_contact(
+                        brevo_key, recipient,
+                        attributes={"COMPANY": biz_name,
+                                    "CITY": lead.get("city", ""),
+                                    "KEYWORD": lead.get("keyword", "")},
+                    )
+                except Exception:
+                    pass
+        else:
+            ok, result = _smtp_send_one(
+                sender_email=sender_email,
+                app_password=app_password,
+                recipient_email=recipient,
+                business_name=biz_name,
+                sender_name=sender_name,
+            )
+
+        # ── Update DB ─────────────────────────────────────────────────────
+        if is_followup:
+            if ok:
+                record_followup(lead_id, is_followup)
+            # Don't change status for follow-ups (already 'sent')
+        else:
+            update_status(
+                lead_id,
+                "sent" if ok else "failed",
+                brevo_message_id=message_id,
+                email_template=tpl_key,
+            )
 
         with bg_state.LOCK:
             bg_state.STATE["done"] += 1
@@ -77,20 +133,19 @@ def _background_send_worker(
             else:
                 bg_state.STATE["failed"] += 1
                 bg_state.STATE["errors"].append(
-                    f"{lead.get('email','?')} ({lead.get('business_name','?')}): {msg}"
+                    f"{recipient} ({biz_name}): {result}"
                 )
 
-        # ── Inter-email delay (chunked so cancellation is responsive) ─────
+        # ── Inter-email delay (chunked for cancellation responsiveness) ───
         if i < len(lead_ids) - 1:
             jitter = random.randint(-10, 10)
             wait   = max(15, delay_secs + jitter)
-            for _ in range(wait * 2):          # check cancel every 0.5 s
+            for _ in range(wait * 2):
                 time.sleep(0.5)
                 with bg_state.LOCK:
                     if bg_state.STATE["cancel_requested"]:
                         break
 
-    # ── Clean up ──────────────────────────────────────────────────────────
     with bg_state.LOCK:
         bg_state.STATE["running"]       = False
         bg_state.STATE["current_biz"]   = ""
@@ -100,7 +155,8 @@ def _background_send_worker(
 
 def _queue_and_send(lead_ids: list, sender_email: str,
                     app_password: str, sender_name: str,
-                    delay_secs: int) -> bool:
+                    delay_secs: int, template: str = "short",
+                    brevo_key: str = "", is_followup: int = 0) -> bool:
     """
     Mark leads as 'queued' in the DB, then start the background thread.
     Returns False if a send is already running.
@@ -124,11 +180,13 @@ def _queue_and_send(lead_ids: list, sender_email: str,
             "delay_secs":       delay_secs,
         })
 
-    set_leads_queued(lead_ids)   # move from 'new' → 'queued' immediately
+    if not is_followup:
+        set_leads_queued(lead_ids)   # move from 'new' → 'queued' immediately
 
     t = threading.Thread(
         target=_background_send_worker,
-        args=(lead_ids, sender_email, app_password, sender_name, delay_secs),
+        args=(lead_ids, sender_email, app_password, sender_name,
+              delay_secs, template, brevo_key, is_followup),
         daemon=True,
         name="email-sender",
     )
@@ -655,6 +713,26 @@ with st.sidebar:
     with st.expander("Yelp — Optional", expanded=False):
         yelp_key = st.text_input("API Key", value=_def_yelp, type="password", key="s_yelp")
 
+    with st.expander("Brevo — Free (recommended)" +
+                     (" ✓" if st.secrets.get("brevo_key","") else ""), expanded=False):
+        _def_brevo = st.secrets.get("brevo_key", "")
+        brevo_key  = st.text_input("Brevo API Key", value=_def_brevo,
+                                   type="password", key="s_brevo",
+                                   help="app.brevo.com → Settings → API Keys (free)")
+        if brevo_key:
+            _acct = brevo_sender.validate_key(brevo_key)
+            if _acct:
+                _plan = next(
+                    (p.get("type","") for p in _acct.get("plan",[]) if p.get("type")),
+                    "free",
+                )
+                st.success(f"✓ Connected · {_acct.get('email','')} · {_plan}")
+            else:
+                st.error("Invalid key — check and retry")
+        else:
+            st.caption("300 emails/day free · open & click tracking included")
+            st.caption("serper.dev → API Keys → create key")
+
     st.divider()
 
     # ── Rate limiting ─────────────────────────────────────────────────────
@@ -708,10 +786,11 @@ st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 # ─────────────────────────────────────────────────────────────────────────────
 # Tabs
 # ─────────────────────────────────────────────────────────────────────────────
-tab_find, tab_db, tab_send, tab_analytics = st.tabs([
+tab_find, tab_db, tab_send, tab_followup, tab_analytics = st.tabs([
     "Find Leads",
     "Leads Database",
     "Send Emails",
+    "Follow-ups",
     "Analytics",
 ])
 
@@ -1174,6 +1253,26 @@ with tab_send:
                     st.success(f"Deleted {guessed_ct} leads.")
                     st.rerun()
 
+        # ── Sending method banner ─────────────────────────────────────────
+        _brevo_k = st.session_state.get("s_brevo","") or st.secrets.get("brevo_key","")
+        if _brevo_k:
+            st.markdown(
+                "<div style='background:#f0fdf4;border:1px solid #bbf7d0;"
+                "border-radius:8px;padding:10px 16px;margin-bottom:12px;"
+                "font-size:13px;color:#15803d;'>"
+                "📡 <b>Brevo</b> will be used for sending — open & click tracking enabled.</div>",
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                "<div style='background:#fefce8;border:1px solid #fde68a;"
+                "border-radius:8px;padding:10px 16px;margin-bottom:12px;"
+                "font-size:13px;color:#92400e;'>"
+                "📧 Sending via <b>Gmail SMTP</b> — add a Brevo API key in the sidebar "
+                "for open/click tracking and better deliverability.</div>",
+                unsafe_allow_html=True,
+            )
+
         if confirmed_ct == 0:
             if not _is_running:
                 st.markdown(
@@ -1205,6 +1304,27 @@ with tab_send:
             st.dataframe(_c_disp[_cc], use_container_width=True,
                          hide_index=True, height=220)
 
+            # ── Template picker ───────────────────────────────────────────
+            st.markdown("<p style='font-size:13px;font-weight:600;color:#374151;"
+                        "margin:14px 0 6px;'>Email template</p>",
+                        unsafe_allow_html=True)
+            tpl_choice = st.radio(
+                "template", list(TEMPLATE_OPTIONS.keys()),
+                format_func=lambda k: (
+                    f"{TEMPLATE_OPTIONS[k][0]}  —  {TEMPLATE_OPTIONS[k][1]}"
+                ),
+                label_visibility="collapsed",
+                key="tpl_choice",
+            )
+            with st.expander("👁 Preview selected template"):
+                st.markdown(
+                    build_html(tpl_choice,
+                               "Example Business Co.",
+                               sender_name or "Your Name",
+                               sender_email or "you@gmail.com"),
+                    unsafe_allow_html=True,
+                )
+
             sc1, sc2 = st.columns([3, 1])
             with sc1:
                 max_send = st.slider(
@@ -1215,35 +1335,27 @@ with tab_send:
                 est_total = max(1, (max_send * delay_sec) // 60)
                 st.metric("Est. total time", f"~{est_total} min")
 
-            st.markdown(
-                f"<div style='background:#eff6ff;border-radius:8px;padding:12px 16px;"
-                f"font-size:13px;color:#1d4ed8;margin:8px 0;'>"
-                f"<b>How it works:</b> Click the button below and walk away. "
-                f"{max_send} emails will be sent in the background with {delay_sec}s gaps. "
-                f"You'll see live progress in the green sidebar indicator and here "
-                f"when you come back. Each address is emailed only once, ever.</div>",
-                unsafe_allow_html=True,
-            )
+            _brevo_key_send = (st.session_state.get("s_brevo","")
+                               or st.secrets.get("brevo_key",""))
+            method_label = "via Brevo" if _brevo_key_send else "via Gmail SMTP"
 
             if _is_running:
-                st.warning("⏳ A send is already running in the background. "
-                           "Wait for it to finish or stop it before queuing more.")
+                st.warning("⏳ A send is already running. Wait or stop it first.")
             else:
                 if st.button(
                     f"📤 Queue {max_send} email{'s' if max_send > 1 else ''} "
-                    f"& send in background",
-                    type="primary",
-                    use_container_width=True,
+                    f"& send in background {method_label}",
+                    type="primary", use_container_width=True,
                 ):
                     ids = df_confirmed.head(max_send)["id"].astype(int).tolist()
                     started = _queue_and_send(
-                        ids, sender_email, app_password, sender_name, delay_sec
+                        ids, sender_email, app_password, sender_name,
+                        delay_sec, tpl_choice, _brevo_key_send,
                     )
                     if started:
                         st.success(
-                            f"✅ {max_send} email(s) queued! Sending in the background. "
-                            f"You can close this tab or navigate away — come back to "
-                            f"check progress anytime."
+                            f"✅ {max_send} email(s) queued! Sending in background "
+                            f"{method_label}. Navigate away — check progress anytime."
                         )
                         time.sleep(1)
                         st.rerun()
@@ -1252,7 +1364,100 @@ with tab_send:
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# TAB 4 – Analytics
+# TAB 4 – Follow-ups
+# ═════════════════════════════════════════════════════════════════════════════
+with tab_followup:
+    _section("Follow-up Sequences",
+             "Send automated follow-ups to leads that haven't replied. "
+             "Day 3 nudge + Day 7 close — proven to 2-3× reply rates.")
+
+    _brevo_fu = st.session_state.get("s_brevo","") or st.secrets.get("brevo_key","")
+
+    fu1 = get_leads_for_followup(touch=1, days_after=3)
+    fu2 = get_leads_for_followup(touch=2, days_after=7)
+
+    f1, f2, f3 = st.columns(3)
+    with f1: _stat_card("Due Follow-up 1", len(fu1), "#4f46e5", "sent 3+ days ago")
+    with f2: _stat_card("Due Follow-up 2", len(fu2), "#0ea5e9", "follow-up 1 sent 7+ days ago")
+    with f3: _stat_card("Total sent",      stats.get("sent",0), "#10b981")
+
+    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+
+    # ── Follow-up 1 ──────────────────────────────────────────────────────────
+    st.markdown("### Follow-up 1 · Day 3", unsafe_allow_html=False)
+    st.caption("A brief nudge referencing the original email. Sent 3 days after first touch.")
+    if fu1.empty:
+        st.info("No leads are due for Follow-up 1 right now. Check back in a few days.")
+    else:
+        _fu1_cols = [c for c in ["id","business_name","email","city","keyword","email_sent_at"]
+                     if c in fu1.columns]
+        st.dataframe(fu1[_fu1_cols], use_container_width=True, hide_index=True, height=200)
+        with st.expander("👁 Preview Follow-up 1 template"):
+            st.markdown(
+                build_html("followup1", "Example Business Co.",
+                           sender_name or "Your Name",
+                           sender_email or "you@gmail.com"),
+                unsafe_allow_html=True,
+            )
+
+        _fu1_max = st.slider("How many to send?", 1, min(50, len(fu1)),
+                             min(20, len(fu1)), key="fu1_max")
+        _fu_method = "via Brevo" if _brevo_fu else "via Gmail SMTP"
+        _fu_ready = _smtp_ready() or bool(_brevo_fu)
+        if not _fu_ready:
+            st.warning("Configure Gmail or Brevo credentials in the sidebar first.")
+        elif _is_running if "_is_running" in dir() else False:
+            st.warning("Wait for the current send to finish first.")
+        else:
+            if st.button(f"📤 Send {_fu1_max} Follow-up 1 emails {_fu_method}",
+                         type="primary", use_container_width=True, key="btn_fu1"):
+                ids = fu1.head(_fu1_max)["id"].astype(int).tolist()
+                started = _queue_and_send(
+                    ids, sender_email, app_password, sender_name,
+                    delay_sec, "followup1", _brevo_fu, is_followup=1,
+                )
+                if started:
+                    st.success(f"✅ {_fu1_max} Follow-up 1 emails queued!")
+                    time.sleep(1); st.rerun()
+
+    st.divider()
+
+    # ── Follow-up 2 ──────────────────────────────────────────────────────────
+    st.markdown("### Follow-up 2 · Day 7 (Final)", unsafe_allow_html=False)
+    st.caption("Polite last touch. Leaves the door open without being pushy.")
+    if fu2.empty:
+        st.info("No leads are due for Follow-up 2 right now.")
+    else:
+        _fu2_cols = [c for c in ["id","business_name","email","city","keyword",
+                                  "followup1_sent_at"] if c in fu2.columns]
+        st.dataframe(fu2[_fu2_cols], use_container_width=True, hide_index=True, height=200)
+        with st.expander("👁 Preview Follow-up 2 template"):
+            st.markdown(
+                build_html("followup2", "Example Business Co.",
+                           sender_name or "Your Name",
+                           sender_email or "you@gmail.com"),
+                unsafe_allow_html=True,
+            )
+
+        _fu2_max = st.slider("How many to send?", 1, min(50, len(fu2)),
+                             min(20, len(fu2)), key="fu2_max")
+        if not _fu_ready:
+            st.warning("Configure credentials in the sidebar first.")
+        else:
+            if st.button(f"📤 Send {_fu2_max} Follow-up 2 emails {_fu_method}",
+                         type="primary", use_container_width=True, key="btn_fu2"):
+                ids = fu2.head(_fu2_max)["id"].astype(int).tolist()
+                started = _queue_and_send(
+                    ids, sender_email, app_password, sender_name,
+                    delay_sec, "followup2", _brevo_fu, is_followup=2,
+                )
+                if started:
+                    st.success(f"✅ {_fu2_max} Follow-up 2 emails queued!")
+                    time.sleep(1); st.rerun()
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# TAB 5 – Analytics
 # ═════════════════════════════════════════════════════════════════════════════
 with tab_analytics:
     _section("Analytics")
@@ -1320,6 +1525,123 @@ with tab_analytics:
                     "Leads by keyword</p>", unsafe_allow_html=True)
         kc = df_all.groupby("keyword").size().reset_index(name="count")
         st.bar_chart(kc.set_index("keyword"), color="#16a34a", height=200)
+
+    # ── Brevo email performance ───────────────────────────────────────────────
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+    _brevo_analytics = st.session_state.get("s_brevo","") or st.secrets.get("brevo_key","")
+    if _brevo_analytics:
+        _section("Brevo Email Performance",
+                 "Live open & click stats from your Brevo account (last 30 days).")
+        with st.spinner("Loading Brevo stats…"):
+            _agg = brevo_sender.get_aggregate_stats(_brevo_analytics, days=30)
+        if _agg:
+            _delivered  = int(_agg.get("delivered",  0))
+            _opens      = int(_agg.get("uniqueOpens", _agg.get("opens", 0)))
+            _clicks     = int(_agg.get("uniqueClicks", _agg.get("clicks", 0)))
+            _hard_b     = int(_agg.get("hardBounces", 0))
+            _soft_b     = int(_agg.get("softBounces", 0))
+            _bounces    = _hard_b + _soft_b
+            _open_rate  = round(_opens  / _delivered * 100, 1) if _delivered else 0.0
+            _click_rate = round(_clicks / _delivered * 100, 1) if _delivered else 0.0
+
+            ba1, ba2, ba3, ba4, ba5 = st.columns(5)
+            with ba1: _stat_card("Delivered (30d)",  _delivered,           "#10b981")
+            with ba2: _stat_card("Unique Opens",     _opens,               "#4f46e5")
+            with ba3: _stat_card("Open Rate",        f"{_open_rate}%",     "#7c3aed")
+            with ba4: _stat_card("Click Rate",       f"{_click_rate}%",    "#0ea5e9")
+            with ba5: _stat_card("Bounced",          _bounces,             "#ef4444")
+
+            # Open-rate progress bar
+            st.markdown(
+                f"<div style='background:white;border-radius:12px;padding:20px 24px;"
+                f"border:1px solid #e9ecef;margin:12px 0;'>"
+                f"<p style='font-size:12px;font-weight:700;color:#9ca3af;text-transform:uppercase;"
+                f"letter-spacing:0.7px;margin:0 0 12px;'>Email performance benchmarks</p>"
+                f"<div style='margin-bottom:10px;'>"
+                f"<div style='display:flex;justify-content:space-between;font-size:12px;"
+                f"color:#6b7280;margin-bottom:5px;'>"
+                f"<span>Open rate &nbsp;<b style='color:#0f172a;'>{_open_rate}%</b></span>"
+                f"<span style='color:#9ca3af;'>Industry avg: 20–25%</span></div>"
+                f"<div style='background:#f3f4f6;border-radius:99px;height:7px;overflow:hidden;'>"
+                f"<div style='width:{min(_open_rate,100)}%;height:100%;"
+                f"background:#4f46e5;border-radius:99px;'></div></div></div>"
+                f"<div>"
+                f"<div style='display:flex;justify-content:space-between;font-size:12px;"
+                f"color:#6b7280;margin-bottom:5px;'>"
+                f"<span>Click rate &nbsp;<b style='color:#0f172a;'>{_click_rate}%</b></span>"
+                f"<span style='color:#9ca3af;'>Industry avg: 2–5%</span></div>"
+                f"<div style='background:#f3f4f6;border-radius:99px;height:7px;overflow:hidden;'>"
+                f"<div style='width:{min(_click_rate*4,100)}%;height:100%;"
+                f"background:#0ea5e9;border-radius:99px;'></div></div></div>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+            # Sync open/click events back to local DB
+            if st.button("🔄 Sync open/click events from Brevo → local DB", key="sync_brevo"):
+                with st.spinner("Fetching events from Brevo…"):
+                    _events = brevo_sender.get_email_events(_brevo_analytics, limit=500)
+                _synced = 0
+                for evt in _events:
+                    _evt_email = evt.get("email", "")
+                    _evt_type  = evt.get("event", "")
+                    _evt_date  = evt.get("date",  "")
+                    if not _evt_email or not _evt_type:
+                        continue
+                    _existing_lead = get_lead_by_email(_evt_email)
+                    if _existing_lead:
+                        _lid = _existing_lead["id"]
+                        if _evt_type == "opened" and not _existing_lead.get("opened_at"):
+                            update_tracking(_lid, opened_at=_evt_date)
+                            _synced += 1
+                        elif _evt_type in ("clicks", "clicked") and not _existing_lead.get("clicked_at"):
+                            update_tracking(_lid, clicked_at=_evt_date)
+                            _synced += 1
+                st.success(f"✅ Synced {_synced} tracking event(s) to your leads database.")
+
+            # Leads that opened / clicked
+            _df_opened  = (df_all[df_all["opened_at"].notna()]
+                           if "opened_at"  in df_all.columns else pd.DataFrame())
+            _df_clicked = (df_all[df_all["clicked_at"].notna()]
+                           if "clicked_at" in df_all.columns else pd.DataFrame())
+            if not _df_opened.empty or not _df_clicked.empty:
+                oa, ca = st.columns(2)
+                with oa:
+                    st.markdown("<p style='font-size:13px;font-weight:600;color:#374151;"
+                                "margin-bottom:6px;'>Leads who opened your email</p>",
+                                unsafe_allow_html=True)
+                    _oc = [c for c in ["business_name","email","city","opened_at"]
+                           if c in _df_opened.columns]
+                    if not _df_opened.empty:
+                        st.dataframe(_df_opened[_oc], use_container_width=True,
+                                     hide_index=True, height=200)
+                    else:
+                        st.caption("None yet — check back after syncing.")
+                with ca:
+                    st.markdown("<p style='font-size:13px;font-weight:600;color:#374151;"
+                                "margin-bottom:6px;'>Leads who clicked a link</p>",
+                                unsafe_allow_html=True)
+                    _cc2 = [c for c in ["business_name","email","city","clicked_at"]
+                            if c in _df_clicked.columns]
+                    if not _df_clicked.empty:
+                        st.dataframe(_df_clicked[_cc2], use_container_width=True,
+                                     hide_index=True, height=200)
+                    else:
+                        st.caption("None yet — check back after syncing.")
+        else:
+            st.info("No Brevo stats yet. Stats appear after your first Brevo send (may take a few minutes).")
+    else:
+        st.markdown(
+            "<div style='background:#fefce8;border:1px solid #fde68a;"
+            "border-radius:10px;padding:16px 20px;margin-bottom:8px;'>"
+            "<p style='font-size:13px;font-weight:700;color:#92400e;margin:0 0 4px;'>"
+            "📡 Add Brevo for open &amp; click tracking</p>"
+            "<p style='font-size:12px;color:#78350f;margin:0;line-height:1.6;'>"
+            "Connect your free Brevo account (sidebar → Brevo API key) to see open rates, "
+            "click rates and bounce stats here. Free tier: 300 emails/day.</p>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
 
     # ── Search history table ──────────────────────────────────────────────────
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)

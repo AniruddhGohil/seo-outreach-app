@@ -40,11 +40,24 @@ def init_db():
             CREATE UNIQUE INDEX IF NOT EXISTS idx_email
             ON leads(email) WHERE email IS NOT NULL AND email != ''
         """)
-        # Migration v2: add email_source column to existing databases
+        # Migration v2: email_source
         try:
             conn.execute("ALTER TABLE leads ADD COLUMN email_source TEXT")
         except sqlite3.OperationalError:
-            pass  # column already exists
+            pass
+        # Migration v3: Brevo tracking + follow-up sequence
+        for col, typedef in [
+            ("brevo_message_id", "TEXT"),
+            ("opened_at",        "TEXT"),
+            ("clicked_at",       "TEXT"),
+            ("followup1_sent_at","TEXT"),
+            ("followup2_sent_at","TEXT"),
+            ("email_template",   "TEXT"),
+        ]:
+            try:
+                conn.execute(f"ALTER TABLE leads ADD COLUMN {col} {typedef}")
+            except sqlite3.OperationalError:
+                pass  # column already exists
 
         # ── Search history table ─────────────────────────────────────────────
         conn.execute("""
@@ -188,13 +201,68 @@ def get_leads_with_email(status: str = "new") -> pd.DataFrame:
         )
 
 
-def update_status(lead_id: int, status: str):
+def update_status(lead_id: int, status: str,
+                  brevo_message_id: str = "",
+                  email_template: str = ""):
     with get_conn() as conn:
         conn.execute(
-            "UPDATE leads SET status=?, email_sent_at=? WHERE id=?",
-            (status, datetime.now().isoformat(), lead_id)
+            """UPDATE leads
+               SET status=?, email_sent_at=?, brevo_message_id=?, email_template=?
+               WHERE id=?""",
+            (status, datetime.now().isoformat(),
+             brevo_message_id or None,
+             email_template or None,
+             lead_id),
         )
         conn.commit()
+
+
+def update_tracking(lead_id: int, opened_at: str = "", clicked_at: str = ""):
+    """Update open/click timestamps from Brevo webhook/polling data."""
+    with get_conn() as conn:
+        if opened_at:
+            conn.execute(
+                "UPDATE leads SET opened_at=? WHERE id=?",
+                (opened_at, lead_id),
+            )
+        if clicked_at:
+            conn.execute(
+                "UPDATE leads SET clicked_at=? WHERE id=?",
+                (clicked_at, lead_id),
+            )
+        conn.commit()
+
+
+def record_followup(lead_id: int, touch: int):
+    """Mark follow-up 1 or 2 as sent."""
+    col = "followup1_sent_at" if touch == 1 else "followup2_sent_at"
+    with get_conn() as conn:
+        conn.execute(
+            f"UPDATE leads SET {col}=? WHERE id=?",
+            (datetime.now().isoformat(), lead_id),
+        )
+        conn.commit()
+
+
+def get_leads_for_followup(touch: int = 1, days_after: int = 3) -> pd.DataFrame:
+    """
+    Return leads that were sent the initial email N days ago,
+    haven't been replied to (status still 'sent'), and
+    haven't received follow-up touch yet.
+    """
+    col = "followup1_sent_at" if touch == 1 else "followup2_sent_at"
+    prev_col = "email_sent_at" if touch == 1 else "followup1_sent_at"
+    cutoff = (datetime.now().timestamp() - days_after * 86400)
+    with get_conn() as conn:
+        return pd.read_sql_query(
+            f"""SELECT * FROM leads
+                WHERE status = 'sent'
+                  AND {col} IS NULL
+                  AND {prev_col} IS NOT NULL
+                  AND datetime({prev_col}) <= datetime('now', '-{days_after} days')
+                ORDER BY {prev_col} ASC""",
+            conn,
+        )
 
 
 def delete_leads(lead_ids: List[int]):
