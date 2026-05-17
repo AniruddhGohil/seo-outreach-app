@@ -1125,8 +1125,8 @@ with tab_db:
             format_func=lambda x: {"all":"All leads","new":"New — not yet emailed",
                 "sent":"Sent","failed":"Failed","no_email":"No email found"}.get(x, x))
     with f2:
-        st.write(""); st.write("")
-        if st.button("Refresh", use_container_width=True): st.rerun()
+        st.markdown("<div style='height:27px'></div>", unsafe_allow_html=True)
+        if st.button("🔄 Refresh", use_container_width=True): st.rerun()
 
     df_db = get_leads(None if status_filter == "all" else status_filter)
 
