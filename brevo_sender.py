@@ -204,3 +204,25 @@ def get_aggregate_stats(api_key: str, days: int = 30) -> dict:
     except Exception:
         pass
     return {}
+
+
+def get_today_stats(api_key: str) -> dict:
+    """
+    Return today's sent/delivered/opened/clicked counts only.
+    Used for the daily budget tracker (300 emails/day free limit).
+    """
+    from datetime import datetime
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    headers = {"api-key": api_key, "Accept": "application/json"}
+    try:
+        r = requests.get(
+            f"{BREVO_BASE}/smtp/statistics/aggregatedReport",
+            headers=headers,
+            params={"startDate": today, "endDate": today, "tag": "seo-outreach"},
+            timeout=10,
+        )
+        if r.status_code == 200:
+            return r.json()
+    except Exception:
+        pass
+    return {}

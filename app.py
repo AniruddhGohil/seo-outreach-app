@@ -688,6 +688,36 @@ with st.sidebar:
             unsafe_allow_html=True,
         )
 
+    # ── Daily Brevo budget tracker ────────────────────────────────────────
+    _brevo_sidebar = st.secrets.get("brevo_key", "") or st.session_state.get("s_brevo", "")
+    if _brevo_sidebar:
+        try:
+            _today = brevo_sender.get_today_stats(_brevo_sidebar)
+            _used  = int(_today.get("requests", 0))
+            _limit = 300
+            _left  = max(0, _limit - _used)
+            _pct   = min(100, int(_used / _limit * 100))
+            _bar_color = "#4ade80" if _pct < 70 else ("#facc15" if _pct < 90 else "#f87171")
+            st.markdown(
+                f"<div style='background:#0f2027;border:1px solid #1e3a4a;"
+                f"border-radius:8px;padding:10px 12px;margin:6px 0;'>"
+                f"<div style='display:flex;justify-content:space-between;"
+                f"font-size:11px;font-weight:700;color:#94a3b8;"
+                f"letter-spacing:0.5px;margin-bottom:6px;'>"
+                f"<span>📬 DAILY EMAIL BUDGET</span>"
+                f"<span style='color:{_bar_color};'>{_used}/{_limit}</span></div>"
+                f"<div style='background:#1e293b;border-radius:99px;height:5px;"
+                f"overflow:hidden;margin-bottom:5px;'>"
+                f"<div style='width:{_pct}%;height:5px;"
+                f"background:{_bar_color};border-radius:99px;'></div></div>"
+                f"<div style='font-size:11px;color:#475569;'>"
+                f"{_left} emails remaining today</div>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+        except Exception:
+            pass
+
     st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
     st.divider()
 
@@ -757,8 +787,8 @@ with st.sidebar:
     st.markdown("<div style='font-size:11px;font-weight:700;color:#475569;"
                 "text-transform:uppercase;letter-spacing:0.8px;margin-bottom:10px;'>"
                 "Rate Limiting</div>", unsafe_allow_html=True)
-    delay_sec = st.slider("Delay between emails (s)", 30, 180, 120)
-    st.caption("120 s recommended. Higher = safer deliverability.")
+    delay_sec = st.slider("Delay between emails (s)", 30, 180, 60)
+    st.caption("60 s is safe with Brevo (dedicated infrastructure). Gmail SMTP: use 90s+.")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
