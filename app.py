@@ -345,144 +345,147 @@ init_db()
 # ─────────────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-/* ── Base ── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+/* ── Reset & base ── */
 html, body, [class*="css"] {
-    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif !important;
 }
-.stApp { background: #f4f6f9; }
-.block-container { padding-top: 28px !important; padding-bottom: 40px !important; }
+.stApp { background: #f1f5f9 !important; }
+.block-container {
+    padding-top: 32px !important;
+    padding-bottom: 60px !important;
+    max-width: 1200px !important;
+}
 
 /* ── Sidebar ── */
-[data-testid="stSidebar"] { background: #0f172a !important; }
+[data-testid="stSidebar"] {
+    background: #0f172a !important;
+    border-right: 1px solid #1e293b !important;
+}
 [data-testid="stSidebar"] > div { background: #0f172a !important; }
-[data-testid="stSidebar"] * { color: #cbd5e1 !important; }
+[data-testid="stSidebar"] * { color: #94a3b8 !important; }
+
 [data-testid="stSidebar"] .stTextInput input {
     background: #1e293b !important;
     border: 1px solid #334155 !important;
-    color: #f1f5f9 !important;
-    border-radius: 8px !important;
+    color: #e2e8f0 !important;
+    border-radius: 6px !important;
     font-size: 13px !important;
+    padding: 8px 12px !important;
+}
+[data-testid="stSidebar"] .stTextInput input:focus {
+    border-color: #4f46e5 !important;
+    box-shadow: 0 0 0 2px rgba(79,70,229,.15) !important;
 }
 [data-testid="stSidebar"] .stTextInput label {
-    color: #64748b !important;
-    font-size: 12px !important;
-    font-weight: 600 !important;
-    text-transform: uppercase !important;
-    letter-spacing: 0.5px !important;
+    font-size: 11px !important; font-weight: 600 !important;
+    text-transform: uppercase !important; letter-spacing: 0.7px !important;
+    color: #475569 !important;
 }
-[data-testid="stSidebar"] .stButton button {
-    background: #1e293b !important;
-    border: 1px solid #334155 !important;
-    color: #94a3b8 !important;
-    border-radius: 8px !important;
-    font-size: 13px !important;
-    font-weight: 500 !important;
-    width: 100% !important;
-    transition: all .15s !important;
+[data-testid="stSidebar"] .stButton > button {
+    background: #1e293b !important; border: 1px solid #334155 !important;
+    color: #94a3b8 !important; border-radius: 6px !important;
+    font-size: 13px !important; font-weight: 500 !important;
+    width: 100% !important; transition: all .12s !important;
+    padding: 7px 12px !important;
 }
-[data-testid="stSidebar"] .stButton button:hover {
-    background: #334155 !important;
-    color: #f1f5f9 !important;
+[data-testid="stSidebar"] .stButton > button:hover {
+    background: #334155 !important; color: #e2e8f0 !important;
+    border-color: #475569 !important;
 }
-[data-testid="stSidebar"] hr { border-color: #1e293b !important; margin: 12px 0 !important; }
+[data-testid="stSidebar"] hr { border-color: #1e293b !important; margin: 10px 0 !important; }
 [data-testid="stSidebar"] .stExpander {
-    background: #1e293b !important;
-    border: 1px solid #334155 !important;
-    border-radius: 10px !important;
+    background: #1e293b !important; border: 1px solid #334155 !important;
+    border-radius: 8px !important;
 }
-[data-testid="stSidebar"] .stSlider [data-baseweb="slider"] [role="slider"] {
-    background: #3b82f6 !important;
+[data-testid="stSidebar"] .stExpander summary {
+    color: #94a3b8 !important; font-size: 13px !important;
 }
+[data-testid="stSidebar"] .stSlider { padding: 0 !important; }
 
 /* ── Tabs ── */
 .stTabs [data-baseweb="tab-list"] {
-    gap: 0;
-    background: transparent;
-    border-bottom: 2px solid #e2e8f0;
-    padding: 0;
-    border-radius: 0;
-    margin-bottom: 24px;
+    gap: 2px; background: white;
+    border: 1px solid #e2e8f0; border-radius: 10px;
+    padding: 4px; margin-bottom: 24px;
 }
 .stTabs [data-baseweb="tab"] {
-    border-radius: 0 !important;
-    padding: 10px 22px !important;
-    font-weight: 600 !important;
-    font-size: 14px !important;
-    color: #94a3b8 !important;
-    background: transparent !important;
-    border-bottom: 2px solid transparent !important;
-    margin-bottom: -2px !important;
+    border-radius: 7px !important; padding: 8px 18px !important;
+    font-weight: 600 !important; font-size: 13px !important;
+    color: #64748b !important; background: transparent !important;
+    border: none !important; transition: all .12s !important;
 }
 .stTabs [aria-selected="true"] {
-    color: #2563eb !important;
-    border-bottom: 2px solid #2563eb !important;
-    background: transparent !important;
+    color: #0f172a !important; background: #f1f5f9 !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,.08) !important;
 }
 
-/* ── Buttons ── */
-.stButton button[kind="primary"] {
-    background: #2563eb !important;
-    border: none !important;
-    border-radius: 8px !important;
-    font-weight: 600 !important;
+/* ── Primary button ── */
+.stButton > button[kind="primary"] {
+    background: #4f46e5 !important; border: none !important;
+    border-radius: 8px !important; font-weight: 600 !important;
+    font-size: 14px !important; color: white !important;
+    padding: 10px 22px !important; letter-spacing: -0.1px !important;
+    transition: all .12s !important; box-shadow: 0 1px 3px rgba(79,70,229,.3) !important;
+}
+.stButton > button[kind="primary"]:hover {
+    background: #4338ca !important; box-shadow: 0 4px 12px rgba(79,70,229,.35) !important;
+    transform: translateY(-1px) !important;
+}
+.stButton > button[kind="secondary"] {
+    background: white !important; border: 1px solid #e2e8f0 !important;
+    border-radius: 8px !important; font-weight: 500 !important;
+    font-size: 13px !important; color: #374151 !important;
+    transition: all .12s !important;
+}
+.stButton > button[kind="secondary"]:hover {
+    border-color: #cbd5e1 !important; background: #f8fafc !important;
+}
+
+/* ── Inputs ── */
+.stTextInput input, .stNumberInput input {
+    border-radius: 8px !important; border: 1px solid #e2e8f0 !important;
+    font-size: 14px !important; padding: 9px 12px !important;
+    transition: border-color .12s !important;
+}
+.stTextInput input:focus, .stNumberInput input:focus {
+    border-color: #4f46e5 !important;
+    box-shadow: 0 0 0 3px rgba(79,70,229,.12) !important;
+}
+div[data-baseweb="select"] > div {
+    border-radius: 8px !important; border-color: #e2e8f0 !important;
     font-size: 14px !important;
-    color: white !important;
-    padding: 10px 20px !important;
-    transition: background .15s !important;
-}
-.stButton button[kind="primary"]:hover {
-    background: #1d4ed8 !important;
-}
-.stButton button[kind="secondary"] {
-    background: white !important;
-    border: 1px solid #e2e8f0 !important;
-    border-radius: 8px !important;
-    font-weight: 500 !important;
-    font-size: 13px !important;
-    color: #374151 !important;
 }
 
-/* ── Metric cards ── */
-[data-testid="metric-container"] {
-    background: white !important;
-    border: 1px solid #e9ecef !important;
-    border-radius: 12px !important;
-    padding: 20px 24px !important;
-    box-shadow: none !important;
-}
-[data-testid="stMetricValue"] {
-    font-size: 28px !important;
-    font-weight: 700 !important;
-    color: #111827 !important;
-}
-[data-testid="stMetricLabel"] {
-    font-size: 12px !important;
-    color: #9ca3af !important;
-    font-weight: 600 !important;
-    text-transform: uppercase !important;
-    letter-spacing: 0.6px !important;
+/* ── Selectbox / dropdowns ── */
+div[data-baseweb="select"] > div:first-child {
+    border: 1px solid #e2e8f0 !important; border-radius: 8px !important;
 }
 
-/* ── Data table ── */
+/* ── Dataframe ── */
 [data-testid="stDataFrame"] {
-    border: 1px solid #e9ecef !important;
-    border-radius: 10px !important;
-    overflow: hidden !important;
-    box-shadow: none !important;
-}
-
-/* ── Inputs / selects ── */
-.stTextInput input, .stSelectbox select, div[data-baseweb="select"] {
-    border-radius: 8px !important;
-    border-color: #e2e8f0 !important;
-    font-size: 14px !important;
+    border: 1px solid #e2e8f0 !important; border-radius: 10px !important;
+    overflow: hidden !important; box-shadow: none !important;
 }
 
 /* ── Alerts ── */
-.stAlert { border-radius: 8px !important; border: none !important; }
+.stAlert { border-radius: 10px !important; }
+[data-testid="stAlert"] { border-radius: 10px !important; }
 
-/* ── Toggle ── */
-.stToggle [data-baseweb="checkbox"] { border-radius: 20px !important; }
+/* ── Expander ── */
+.stExpander { border: 1px solid #e2e8f0 !important; border-radius: 10px !important; }
+
+/* ── Progress bar ── */
+[data-testid="stProgressBar"] > div > div {
+    background: #4f46e5 !important; border-radius: 99px !important;
+}
+
+/* ── Slider ── */
+[data-testid="stSlider"] [role="slider"] { background: #4f46e5 !important; }
+
+/* ── Hide Streamlit chrome ── */
+#MainMenu, footer { display: none !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -491,11 +494,12 @@ html, body, [class*="css"] {
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _section(title: str, subtitle: str = ""):
-    sub = f"<p style='font-size:13px;color:#9ca3af;margin:2px 0 0;'>{subtitle}</p>" if subtitle else ""
+    sub = (f'<p style="font-size:13px;color:#64748b;margin:3px 0 0;font-weight:400;">'
+           f'{subtitle}</p>') if subtitle else ""
     st.markdown(
-        f"<div style='margin-bottom:20px;'>"
-        f"<h3 style='font-size:18px;font-weight:700;color:#111827;margin:0;'>{title}</h3>"
-        f"{sub}</div>",
+        f'<div style="margin-bottom:22px;">'
+        f'<h3 style="font-size:17px;font-weight:700;color:#0f172a;margin:0;'
+        f'letter-spacing:-0.3px;">{title}</h3>{sub}</div>',
         unsafe_allow_html=True,
     )
 
@@ -503,31 +507,39 @@ def _section(title: str, subtitle: str = ""):
 def _card(content_html: str):
     st.markdown(
         f'<div style="background:white;border-radius:12px;padding:24px;'
-        f'border:1px solid #e9ecef;margin-bottom:16px;">{content_html}</div>',
+        f'border:1px solid #e2e8f0;margin-bottom:16px;'
+        f'box-shadow:0 1px 3px rgba(0,0,0,.04);">{content_html}</div>',
         unsafe_allow_html=True,
     )
 
 
-def _stat_card(label: str, value, color: str, sub: str = ""):
-    sub_html = (f'<div style="font-size:12px;color:#9ca3af;margin-top:4px;">{sub}</div>'
-                if sub else "")
-    dot = (f'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;'
-           f'background:{color};margin-right:6px;vertical-align:middle;"></span>')
+def _stat_card(label: str, value, color: str, sub: str = "", icon: str = ""):
+    sub_html = (f'<div style="font-size:11px;color:#94a3b8;margin-top:5px;'
+                f'font-weight:500;">{sub}</div>') if sub else ""
+    icon_html = (f'<div style="font-size:22px;margin-bottom:10px;line-height:1;">'
+                 f'{icon}</div>') if icon else ""
+    accent = (f'<div style="width:3px;height:36px;background:{color};'
+              f'border-radius:3px;flex-shrink:0;"></div>')
     st.markdown(
-        f'<div style="background:white;border-radius:12px;padding:20px 24px;'
-        f'border:1px solid #e9ecef;">'
-        f'<div style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;'
-        f'letter-spacing:0.7px;margin-bottom:10px;">{dot}{label}</div>'
-        f'<div style="font-size:34px;font-weight:800;color:#111827;line-height:1;">{value}</div>'
+        f'<div style="background:white;border-radius:12px;padding:18px 20px;'
+        f'border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,.04);'
+        f'display:flex;align-items:center;gap:14px;">'
+        f'{accent}'
+        f'<div style="flex:1;min-width:0;">'
+        f'{icon_html}'
+        f'<div style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;'
+        f'letter-spacing:0.8px;margin-bottom:5px;white-space:nowrap;">{label}</div>'
+        f'<div style="font-size:28px;font-weight:800;color:#0f172a;line-height:1;'
+        f'letter-spacing:-1px;">{value}</div>'
         f'{sub_html}'
-        f'</div>',
+        f'</div></div>',
         unsafe_allow_html=True,
     )
 
 
 def _badge(text: str, color: str, bg: str) -> str:
     return (
-        f'<span style="background:{bg};color:{color};border-radius:6px;'
+        f'<span style="background:{bg};color:{color};border-radius:5px;'
         f'padding:2px 8px;font-size:11px;font-weight:600;">{text}</span>'
     )
 
@@ -545,11 +557,15 @@ STATUS_BADGE = {
 with st.sidebar:
     # Wordmark
     st.markdown(
-        "<div style='padding:16px 0 8px;'>"
-        "<div style='font-size:15px;font-weight:700;color:#f1f5f9;letter-spacing:-0.3px;'>"
-        "🚀 SEO Outreach</div>"
-        "<div style='font-size:11px;color:#475569;margin-top:2px;'>B2B cold email engine</div>"
-        "</div>",
+        "<div style='padding:20px 0 12px;border-bottom:1px solid #1e293b;margin-bottom:12px;'>"
+        "<div style='display:flex;align-items:center;gap:8px;'>"
+        "<div style='width:28px;height:28px;background:#4f46e5;border-radius:7px;"
+        "display:flex;align-items:center;justify-content:center;font-size:14px;'>🚀</div>"
+        "<div>"
+        "<div style='font-size:14px;font-weight:700;color:#f1f5f9;letter-spacing:-0.3px;'>"
+        "SEO Outreach</div>"
+        "<div style='font-size:10px;color:#475569;letter-spacing:0.3px;'>B2B COLD EMAIL ENGINE</div>"
+        "</div></div></div>",
         unsafe_allow_html=True,
     )
 
@@ -668,34 +684,35 @@ ready   = stats.get("new",     0)
 queued  = stats.get("queued",  0)
 failed  = stats.get("failed",  0)
 
-h1, h2, h3, h4, h5 = st.columns([3, 1, 1, 1, 1])
-with h1:
-    st.markdown(
-        "<h1 style='font-size:22px;font-weight:700;color:#111827;margin:0;padding:8px 0;'>"
-        "SEO Outreach Engine</h1>"
-        "<p style='font-size:13px;color:#9ca3af;margin:0;'>"
-        "Find leads · Extract emails · Close clients</p>",
-        unsafe_allow_html=True,
-    )
-with h2:
-    st.metric("Total leads", total)
-with h3:
-    st.metric("Emails sent", sent)
-with h4:
-    st.metric("In queue", queued)
-with h5:
-    st.metric("Ready", ready)
+# ── Title row ─────────────────────────────────────────────────────────────────
+st.markdown(
+    "<div style='padding:4px 0 20px;'>"
+    "<div style='font-size:22px;font-weight:800;color:#0f172a;letter-spacing:-0.5px;'>"
+    "SEO Outreach Engine</div>"
+    "<div style='font-size:13px;color:#94a3b8;margin-top:3px;font-weight:400;'>"
+    "Find leads &nbsp;·&nbsp; Extract emails &nbsp;·&nbsp; Close clients</div>"
+    "</div>",
+    unsafe_allow_html=True,
+)
 
-st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+# ── Metric cards row ──────────────────────────────────────────────────────────
+m1, m2, m3, m4, m5 = st.columns(5)
+with m1: _stat_card("Total Leads",    total,  "#4f46e5")
+with m2: _stat_card("Emails Sent",    sent,   "#10b981")
+with m3: _stat_card("In Queue",       queued, "#0ea5e9")
+with m4: _stat_card("Ready to Send",  ready,  "#f59e0b")
+with m5: _stat_card("Failed",         failed, "#ef4444")
+
+st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Tabs
 # ─────────────────────────────────────────────────────────────────────────────
 tab_find, tab_db, tab_send, tab_analytics = st.tabs([
-    "🔍 Find Leads",
-    "📋 Leads Database",
-    "✉️ Send Emails",
-    "📊 Analytics",
+    "Find Leads",
+    "Leads Database",
+    "Send Emails",
+    "Analytics",
 ])
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1241,12 +1258,12 @@ with tab_analytics:
     _section("Analytics")
 
     a1, a2, a3, a4, a5, a6 = st.columns(6)
-    with a1: _stat_card("Total leads",    stats.get("total",   0), "#2563eb")
-    with a2: _stat_card("New (unsent)",   stats.get("new",     0), "#7c3aed", "go to Send Emails")
-    with a3: _stat_card("Queued / sending", stats.get("queued",0), "#0284c7")
-    with a4: _stat_card("Emails sent",   stats.get("sent",     0), "#16a34a")
-    with a5: _stat_card("Failed",        stats.get("failed",   0), "#ef4444")
-    with a6: _stat_card("No email",      stats.get("no_email", 0), "#f59e0b")
+    with a1: _stat_card("Total Leads",     stats.get("total",   0), "#4f46e5")
+    with a2: _stat_card("Ready to Send",   stats.get("new",     0), "#f59e0b")
+    with a3: _stat_card("Queued / Active", stats.get("queued",  0), "#0ea5e9")
+    with a4: _stat_card("Emails Sent",     stats.get("sent",    0), "#10b981")
+    with a5: _stat_card("Failed",          stats.get("failed",  0), "#ef4444")
+    with a6: _stat_card("No Email Found",  stats.get("no_email",0), "#94a3b8")
 
     st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
