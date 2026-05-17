@@ -521,6 +521,20 @@ div[data-baseweb="select"] > div:first-child {
     border: 1px solid #e2e8f0 !important; border-radius: 8px !important;
 }
 
+/* ── Equal-height stat cards ── */
+[data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+    display: flex !important;
+    flex-direction: column !important;
+}
+[data-testid="stHorizontalBlock"] > [data-testid="stColumn"] > div:first-child {
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+[data-testid="stHorizontalBlock"] > [data-testid="stColumn"] > div:first-child > div {
+    flex: 1 !important;
+}
+
 /* ── Dataframe ── */
 [data-testid="stDataFrame"] {
     border: 1px solid #e2e8f0 !important; border-radius: 10px !important;
@@ -584,7 +598,7 @@ def _stat_card(label: str, value, color: str, sub: str = "", icon: str = ""):
     st.markdown(
         f'<div style="background:white;border-radius:12px;padding:18px 20px;'
         f'border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,.04);'
-        f'display:flex;align-items:center;gap:14px;min-height:90px;height:100%;'
+        f'display:flex;align-items:center;gap:14px;min-height:116px;height:100%;'
         f'box-sizing:border-box;">'
         f'{accent}'
         f'<div style="flex:1;min-width:0;">'
