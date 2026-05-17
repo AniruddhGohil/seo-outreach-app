@@ -242,88 +242,83 @@ def _login_page() -> bool:
         [data-testid="stDecoration"],
         [data-testid="stStatusWidget"] { display: none !important; }
 
-        html, body, .stApp { background: #f1f5f9 !important; }
-
+        html, body, .stApp { background: #f8f9fb !important; }
         .stApp > .main, .block-container,
         .block-container > div, .block-container > div > div {
             padding: 0 !important; margin: 0 !important;
             max-width: 100% !important; width: 100% !important;
-            background: #f1f5f9 !important;
+            background: #f8f9fb !important;
         }
 
-        /* ── Style the OAuth button to look like a proper Google button ── */
+        /* ── Google button — target every possible selector ── */
         [data-testid="stBaseButton-secondary"],
         [data-testid="stLinkButton"] a,
-        .stLinkButton a {
+        .stLinkButton a,
+        .stButton > button {
             background: white !important;
-            border: 1.5px solid #dadce0 !important;
-            border-radius: 10px !important;
-            color: #3c4043 !important;
-            font-family: 'Inter','Segoe UI',sans-serif !important;
+            border: 1.5px solid #e2e8f0 !important;
+            border-radius: 12px !important;
+            color: #1e293b !important;
             font-size: 15px !important;
             font-weight: 600 !important;
             height: 52px !important;
-            letter-spacing: 0.1px !important;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.06) !important;
-            transition: box-shadow .15s, transform .15s !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
+            transition: all .15s !important;
         }
         [data-testid="stBaseButton-secondary"]:hover,
         [data-testid="stLinkButton"] a:hover,
-        .stLinkButton a:hover {
-            box-shadow: 0 2px 8px rgba(0,0,0,0.12), 0 8px 24px rgba(0,0,0,0.08) !important;
+        .stLinkButton a:hover,
+        .stButton > button:hover {
+            box-shadow: 0 6px 20px rgba(0,0,0,0.12) !important;
             transform: translateY(-1px) !important;
-            border-color: #c6c9cc !important;
+            border-color: #c7d2fe !important;
         }
+        /* Remove Streamlit's default element spacing in login column */
+        [data-testid="stVerticalBlock"] > [data-testid="stVerticalBlockBorderWrapper"],
+        [data-testid="stVerticalBlock"] > div { gap: 0 !important; }
     </style>
     """, unsafe_allow_html=True)
 
     # ── Single centred column ─────────────────────────────────────────────────
-    _, centre, _ = st.columns([1, 1.4, 1])
+    _, centre, _ = st.columns([1, 1.2, 1])
 
     with centre:
-        st.markdown("<div style='height:5vh'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='height:8vh'></div>", unsafe_allow_html=True)
 
-        # ── Logo + title block ────────────────────────────────────────────
+        # ── Everything in one white card ──────────────────────────────────
         st.markdown("""
-        <div style="text-align:center; margin-bottom:24px;">
+        <div style="background:white; border-radius:24px;
+                    border:1px solid #e8ecf0;
+                    box-shadow:0 8px 40px rgba(0,0,0,0.10);
+                    padding:40px 44px 32px; text-align:center;">
+
           <div style="display:inline-flex; align-items:center; justify-content:center;
-                      width:60px; height:60px; background:white;
-                      border-radius:18px; font-size:28px;
-                      box-shadow:0 2px 12px rgba(0,0,0,0.08); margin-bottom:16px;">
+                      width:56px; height:56px; background:#f0f4ff;
+                      border-radius:16px; font-size:26px; margin-bottom:20px;
+                      box-shadow:0 2px 8px rgba(79,70,229,0.15);">
             🚀
           </div>
-          <div style="font-size:26px; font-weight:800; color:#0f172a;
-                      letter-spacing:-0.6px; margin-bottom:6px;
+
+          <div style="font-size:22px; font-weight:800; color:#0f172a;
+                      letter-spacing:-0.5px; margin-bottom:6px;
                       font-family:'Inter','Segoe UI',sans-serif;">
             SEO Outreach Engine
           </div>
-          <div style="font-size:14px; color:#94a3b8; font-weight:400;">
-            Find leads &nbsp;·&nbsp; Extract emails &nbsp;·&nbsp; Close clients
+          <div style="font-size:13px; color:#94a3b8; margin-bottom:28px;">
+            Find leads · Extract emails · Close clients
           </div>
+
+          <div style="height:1px; background:#f1f5f9; margin:0 -44px 28px;"></div>
+
+          <div style="font-size:12px; font-weight:600; color:#64748b;
+                      text-transform:uppercase; letter-spacing:0.8px; margin-bottom:14px;">
+            Sign in to your workspace
+          </div>
+
         </div>
         """, unsafe_allow_html=True)
 
-        # ── White card ────────────────────────────────────────────────────
-        st.markdown("""
-        <div style="background:white; border-radius:20px;
-                    border:1px solid #e2e8f0;
-                    box-shadow:0 4px 32px rgba(0,0,0,0.08);
-                    padding:28px 36px 20px; margin-bottom:0;">
-          <p style="font-size:13px; font-weight:700; color:#0f172a;
-                    margin:0 0 4px; letter-spacing:-0.1px;">
-            Sign in to continue
-          </p>
-          <p style="font-size:13px; color:#94a3b8; margin:0 0 20px; line-height:1.5;">
-            Access is restricted to authorised accounts only.
-          </p>
-          <p style="font-size:12px; font-weight:600; color:#64748b;
-                    text-transform:uppercase; letter-spacing:0.6px; margin:0 0 10px;">
-            Continue with
-          </p>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # ── OAuth button ──────────────────────────────────────────────────
+        # ── OAuth button renders here (Streamlit injects it after the div) ──
         oauth2 = OAuth2Component(
             CLIENT_ID, CLIENT_SECRET,
             _GOOGLE_AUTH_URL,
@@ -339,41 +334,20 @@ def _login_page() -> bool:
             key="google_login_btn",
         )
 
-        # ── Trust badges ──────────────────────────────────────────────────
+        # ── Trust badges + footer ─────────────────────────────────────────
         st.markdown("""
-        <div style="display:flex; justify-content:center; align-items:center;
-                    gap:16px; flex-wrap:wrap; margin-top:20px;">
-          <span style="font-size:11px; color:#cbd5e1; display:flex;
-                       align-items:center; gap:4px;">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
-                 stroke="#cbd5e1" stroke-width="2">
-              <rect x="3" y="11" width="18" height="11" rx="2"/>
-              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-            </svg>
-            OAuth 2.0 secured
-          </span>
-          <span style="color:#e2e8f0; font-size:11px;">·</span>
-          <span style="font-size:11px; color:#cbd5e1; display:flex;
-                       align-items:center; gap:4px;">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
-                 stroke="#cbd5e1" stroke-width="2">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-            </svg>
-            Google verified
-          </span>
-          <span style="color:#e2e8f0; font-size:11px;">·</span>
-          <span style="font-size:11px; color:#cbd5e1; display:flex;
-                       align-items:center; gap:4px;">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
-                 stroke="#cbd5e1" stroke-width="2">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-              <circle cx="12" cy="7" r="4"/>
-            </svg>
-            Private access only
-          </span>
-        </div>
-        <div style="text-align:center; margin-top:20px; font-size:11px; color:#cbd5e1;">
-          SEO Outreach Engine &nbsp;·&nbsp; Built for B2B cold email
+        <div style="text-align:center; margin-top:24px;">
+          <div style="display:flex; justify-content:center; align-items:center;
+                      gap:14px; flex-wrap:wrap; margin-bottom:16px;">
+            <span style="font-size:11px; color:#cbd5e1;">🔒 OAuth 2.0 secured</span>
+            <span style="color:#e2e8f0;">·</span>
+            <span style="font-size:11px; color:#cbd5e1;">✅ Google verified</span>
+            <span style="color:#e2e8f0;">·</span>
+            <span style="font-size:11px; color:#cbd5e1;">🔐 Private access only</span>
+          </div>
+          <div style="font-size:11px; color:#cbd5e1;">
+            SEO Outreach Engine &nbsp;·&nbsp; Built for B2B cold email
+          </div>
         </div>
         """, unsafe_allow_html=True)
 
