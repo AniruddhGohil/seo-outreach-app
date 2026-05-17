@@ -914,12 +914,13 @@ with tab_find:
                      "When filled, each code is appended to the location for hyper-local targeting."
             )
         with cz2:
-            st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+            # Align hint vertically with the input box (label height ≈ 24px + 4px gap)
+            st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
             if zipcodes_raw.strip():
                 _zc_list = [z.strip() for z in zipcodes_raw.split(",") if z.strip()]
                 st.markdown(
                     f"<div style='background:#eff6ff;border-radius:8px;padding:9px 14px;"
-                    f"font-size:13px;color:#1d4ed8;margin-top:20px;'>"
+                    f"font-size:13px;color:#1d4ed8;'>"
                     f"📍 Will search {len(_zc_list)} postcode(s): "
                     f"{' · '.join(_zc_list[:6])}{'…' if len(_zc_list) > 6 else ''}</div>",
                     unsafe_allow_html=True,
@@ -927,7 +928,7 @@ with tab_find:
             else:
                 st.markdown(
                     "<div style='background:#f8fafc;border-radius:8px;padding:9px 14px;"
-                    "font-size:13px;color:#94a3b8;margin-top:20px;'>"
+                    "font-size:13px;color:#94a3b8;'>"
                     "💡 Leave blank to search by city only, or enter postcodes for hyper-local results.</div>",
                     unsafe_allow_html=True,
                 )
