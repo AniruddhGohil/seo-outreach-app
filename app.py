@@ -887,33 +887,16 @@ with tab_find:
         with c3:
             country = st.selectbox("Country", list(COUNTRY_SCRAPERS.keys()))
 
-        cz1, cz2 = st.columns([2, 3])
-        with cz1:
-            zipcodes_raw = st.text_input(
-                "ZIP / Pin codes  *(optional)*",
-                placeholder="3000, 3001, 3002  or  560001",
-                help="Target specific postcodes or pin codes. Comma-separate multiple codes. "
-                     "When filled, each code is appended to the location for hyper-local targeting."
-            )
-        with cz2:
-            # Align hint vertically with the input box (label height ≈ 24px + 4px gap)
-            st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-            if zipcodes_raw.strip():
-                _zc_list = [z.strip() for z in zipcodes_raw.split(",") if z.strip()]
-                st.markdown(
-                    f"<div style='background:#eff6ff;border-radius:8px;padding:9px 14px;"
-                    f"font-size:13px;color:#1d4ed8;'>"
-                    f"📍 Will search {len(_zc_list)} postcode(s): "
-                    f"{' · '.join(_zc_list[:6])}{'…' if len(_zc_list) > 6 else ''}</div>",
-                    unsafe_allow_html=True,
-                )
-            else:
-                st.markdown(
-                    "<div style='background:#f8fafc;border-radius:8px;padding:9px 14px;"
-                    "font-size:13px;color:#94a3b8;'>"
-                    "💡 Leave blank to search by city only, or enter postcodes for hyper-local results.</div>",
-                    unsafe_allow_html=True,
-                )
+        zipcodes_raw = st.text_input(
+            "ZIP / Pin codes  *(optional)*",
+            placeholder="e.g. 3000, 3001, 3002  or  560001  — comma-separate multiple codes",
+            help="Each postcode is searched separately for hyper-local results.",
+        )
+        if zipcodes_raw.strip():
+            _zc_list = [z.strip() for z in zipcodes_raw.split(",") if z.strip()]
+            st.caption(f"📍 Will run {len(_zc_list)} targeted search(es): {', '.join(_zc_list[:8])}{'…' if len(_zc_list) > 8 else ''}")
+        else:
+            st.caption("💡 Leave blank to search by city only, or enter postcodes for hyper-local results.")
 
         # Parse zip codes into a list for use during search
         zipcodes = [z.strip() for z in zipcodes_raw.split(",") if z.strip()] if zipcodes_raw.strip() else []
