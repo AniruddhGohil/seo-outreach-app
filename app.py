@@ -11,6 +11,7 @@ import time
 from datetime import datetime
 
 import pandas as pd
+import plotly.express as px
 import streamlit as st
 from streamlit_oauth import OAuth2Component
 
@@ -1576,27 +1577,120 @@ with tab_analytics:
 
         ch1, ch2 = st.columns(2)
         with ch1:
-            st.markdown("<p style='font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;'>"
-                        "Leads by country</p>", unsafe_allow_html=True)
-            cc = df_all.groupby("country").size().reset_index(name="count")
-            st.bar_chart(cc.set_index("country"), color="#2563eb", height=220)
+            st.markdown(
+                "<div style='background:white;border-radius:12px;padding:16px 20px;"
+                "border:1px solid #e9ecef;margin-bottom:12px;'>"
+                "<p style='font-size:13px;font-weight:600;color:#374151;margin:0 0 10px;'>"
+                "Leads by Country</p></div>",
+                unsafe_allow_html=True,
+            )
+            cc = df_all.groupby("country").size().reset_index(name="Leads")
+            cc = cc.sort_values("Leads", ascending=True).tail(12)
+            fig_cc = px.bar(
+                cc, x="Leads", y="country", orientation="h",
+                color_discrete_sequence=["#4f46e5"],
+                labels={"country": "", "Leads": "Leads"},
+                height=260,
+            )
+            fig_cc.update_layout(
+                margin=dict(l=0, r=12, t=4, b=4),
+                paper_bgcolor="white", plot_bgcolor="white",
+                font=dict(family="Inter, sans-serif", size=12, color="#374151"),
+                xaxis=dict(showgrid=True, gridcolor="#f3f4f6", zeroline=False),
+                yaxis=dict(showgrid=False),
+            )
+            fig_cc.update_traces(marker_line_width=0)
+            st.plotly_chart(fig_cc, use_container_width=True)
 
         with ch2:
-            st.markdown("<p style='font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;'>"
-                        "Leads by status</p>", unsafe_allow_html=True)
-            sc_df = df_all.groupby("status").size().reset_index(name="count")
-            st.bar_chart(sc_df.set_index("status"), color="#7c3aed", height=220)
+            st.markdown(
+                "<div style='background:white;border-radius:12px;padding:16px 20px;"
+                "border:1px solid #e9ecef;margin-bottom:12px;'>"
+                "<p style='font-size:13px;font-weight:600;color:#374151;margin:0 0 10px;'>"
+                "Leads by Status</p></div>",
+                unsafe_allow_html=True,
+            )
+            sc_df = df_all.groupby("status").size().reset_index(name="Leads")
+            _status_colors = {
+                "new": "#6366f1", "queued": "#f59e0b", "sent": "#10b981",
+                "bounced": "#ef4444", "replied": "#0ea5e9", "skipped": "#9ca3af",
+            }
+            sc_df["color"] = sc_df["status"].map(
+                lambda s: _status_colors.get(s, "#6366f1")
+            )
+            fig_sc = px.bar(
+                sc_df, x="Leads", y="status", orientation="h",
+                color="status",
+                color_discrete_map=_status_colors,
+                labels={"status": "", "Leads": "Leads"},
+                height=260,
+            )
+            fig_sc.update_layout(
+                margin=dict(l=0, r=12, t=4, b=4),
+                paper_bgcolor="white", plot_bgcolor="white",
+                font=dict(family="Inter, sans-serif", size=12, color="#374151"),
+                xaxis=dict(showgrid=True, gridcolor="#f3f4f6", zeroline=False),
+                yaxis=dict(showgrid=False),
+                showlegend=False,
+            )
+            fig_sc.update_traces(marker_line_width=0)
+            st.plotly_chart(fig_sc, use_container_width=True)
 
-        st.markdown("<p style='font-size:13px;font-weight:600;color:#374151;margin:16px 0 6px;'>"
-                    "Daily lead volume</p>", unsafe_allow_html=True)
+        # ── Daily lead volume ─────────────────────────────────────────────────
+        st.markdown(
+            "<div style='background:white;border-radius:12px;padding:16px 20px;"
+            "border:1px solid #e9ecef;margin-bottom:12px;'>"
+            "<p style='font-size:13px;font-weight:600;color:#374151;margin:0 0 10px;'>"
+            "Daily Lead Volume</p></div>",
+            unsafe_allow_html=True,
+        )
         df_all["date"] = pd.to_datetime(df_all["created_at"]).dt.date
-        daily = df_all.groupby("date").size().reset_index(name="leads")
-        st.line_chart(daily.set_index("date"), color="#2563eb", height=200)
+        daily = df_all.groupby("date").size().reset_index(name="Leads")
+        daily["date"] = pd.to_datetime(daily["date"])
+        fig_daily = px.area(
+            daily, x="date", y="Leads",
+            color_discrete_sequence=["#4f46e5"],
+            labels={"date": "", "Leads": "Leads per day"},
+            height=220,
+        )
+        fig_daily.update_layout(
+            margin=dict(l=0, r=12, t=4, b=4),
+            paper_bgcolor="white", plot_bgcolor="white",
+            font=dict(family="Inter, sans-serif", size=12, color="#374151"),
+            xaxis=dict(showgrid=False, zeroline=False),
+            yaxis=dict(showgrid=True, gridcolor="#f3f4f6", zeroline=False),
+        )
+        fig_daily.update_traces(
+            line_color="#4f46e5", fillcolor="rgba(79,70,229,0.12)",
+            line_width=2,
+        )
+        st.plotly_chart(fig_daily, use_container_width=True)
 
-        st.markdown("<p style='font-size:13px;font-weight:600;color:#374151;margin:16px 0 6px;'>"
-                    "Leads by keyword</p>", unsafe_allow_html=True)
-        kc = df_all.groupby("keyword").size().reset_index(name="count")
-        st.bar_chart(kc.set_index("keyword"), color="#16a34a", height=200)
+        # ── Leads by keyword ──────────────────────────────────────────────────
+        st.markdown(
+            "<div style='background:white;border-radius:12px;padding:16px 20px;"
+            "border:1px solid #e9ecef;margin-bottom:12px;'>"
+            "<p style='font-size:13px;font-weight:600;color:#374151;margin:0 0 10px;'>"
+            "Top Keywords</p></div>",
+            unsafe_allow_html=True,
+        )
+        kc = df_all.groupby("keyword").size().reset_index(name="Leads")
+        kc = kc.sort_values("Leads", ascending=True).tail(15)
+        fig_kc = px.bar(
+            kc, x="Leads", y="keyword", orientation="h",
+            color_discrete_sequence=["#10b981"],
+            labels={"keyword": "", "Leads": "Leads"},
+            height=max(220, len(kc) * 28),
+        )
+        fig_kc.update_layout(
+            margin=dict(l=0, r=12, t=4, b=4),
+            paper_bgcolor="white", plot_bgcolor="white",
+            font=dict(family="Inter, sans-serif", size=12, color="#374151"),
+            xaxis=dict(showgrid=True, gridcolor="#f3f4f6", zeroline=False),
+            yaxis=dict(showgrid=False),
+        )
+        fig_kc.update_traces(marker_line_width=0)
+        st.plotly_chart(fig_kc, use_container_width=True)
 
     # ── Brevo email performance ───────────────────────────────────────────────
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
