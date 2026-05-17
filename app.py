@@ -1125,9 +1125,12 @@ with tab_send:
         st.caption("How to get an App Password: Google account → Security → 2-Step Verification → App Passwords")
     else:
         with st.expander("Preview email template"):
-            st.markdown(EMAIL_TEMPLATE_HTML.format(
-                business_name="ABC Plumbing", sender_name=sender_name,
-                sender_email=sender_email), unsafe_allow_html=True)
+            st.markdown(
+                build_html("short", "ABC Plumbing",
+                           sender_name or "Your Name",
+                           sender_email or "you@gmail.com"),
+                unsafe_allow_html=True,
+            )
 
         # ── Read background state (thread-safe snapshot) ──────────────────────
         with bg_state.LOCK:
