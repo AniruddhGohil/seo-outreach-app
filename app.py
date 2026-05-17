@@ -257,21 +257,21 @@ def _login_page() -> bool:
         .stButton > button {
             background: white !important;
             border: 1.5px solid #e2e8f0 !important;
-            border-radius: 12px !important;
+            border-radius: 99px !important;
             color: #1e293b !important;
             font-size: 15px !important;
             font-weight: 600 !important;
-            height: 52px !important;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
+            height: 50px !important;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.10) !important;
             transition: all .15s !important;
         }
         [data-testid="stBaseButton-secondary"]:hover,
         [data-testid="stLinkButton"] a:hover,
         .stLinkButton a:hover,
         .stButton > button:hover {
-            box-shadow: 0 6px 20px rgba(0,0,0,0.12) !important;
+            box-shadow: 0 6px 24px rgba(0,0,0,0.14) !important;
             transform: translateY(-1px) !important;
-            border-color: #c7d2fe !important;
+            border-color: #a5b4fc !important;
         }
         /* Remove Streamlit's default element spacing in login column */
         [data-testid="stVerticalBlock"] > [data-testid="stVerticalBlockBorderWrapper"],
@@ -318,21 +318,23 @@ def _login_page() -> bool:
         </div>
         """, unsafe_allow_html=True)
 
-        # ── OAuth button renders here (Streamlit injects it after the div) ──
+        # ── OAuth button — centred with padding on sides ──────────────────
         oauth2 = OAuth2Component(
             CLIENT_ID, CLIENT_SECRET,
             _GOOGLE_AUTH_URL,
             _GOOGLE_TOKEN_URL, _GOOGLE_TOKEN_URL,
             _GOOGLE_REVOKE_URL,
         )
-        result = oauth2.authorize_button(
-            name="Continue with Google",
-            redirect_uri=REDIRECT_URI,
-            scope="openid email profile",
-            icon="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg",
-            use_container_width=True,
-            key="google_login_btn",
-        )
+        _b1, _b2, _b3 = st.columns([1, 3, 1])
+        with _b2:
+            result = oauth2.authorize_button(
+                name="Continue with Google",
+                redirect_uri=REDIRECT_URI,
+                scope="openid email profile",
+                icon="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg",
+                use_container_width=True,
+                key="google_login_btn",
+            )
 
         # ── Trust badges + footer ─────────────────────────────────────────
         st.markdown("""
