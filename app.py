@@ -904,11 +904,14 @@ with tab_find:
         c4, c5 = st.columns(2)
         with c4:
             max_pages = st.slider(
-                "Pages to scrape", 1, 10, 3,
+                "Pages to scrape", 1, 10, 5,
                 help="Each page returns ~10 businesses from Google Maps. "
-                     "3 pages ≈ 30 businesses, 10 pages ≈ 100 businesses."
+                     "5 pages ≈ 50 businesses — ideal daily batch. "
+                     "10 pages ≈ 100 businesses — max recommended."
             )
-            st.caption(f"≈ {max_pages * 10} businesses will be scraped")
+            st.caption(f"≈ {max_pages * 10} businesses will be scraped"
+                       + (" · ✅ recommended" if max_pages == 5 else
+                          " · ⚠️ may be slow" if max_pages >= 8 else ""))
         with c5:
             auto_email = st.toggle("Auto-extract emails from websites", value=True)
 
