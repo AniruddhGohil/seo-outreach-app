@@ -909,56 +909,122 @@ with tab_send:
                 "Go to Find Leads with auto-extract enabled to get new leads.</p>"
                 "</div>", unsafe_allow_html=True)
         else:
-            guessed_count = int((df_ready.get("email_source","") == "guessed").sum()) \
-                if "email_source" in df_ready.columns else 0
+            # ── Split confirmed vs guessed ────────────────────────────────────
+            if "email_source" in df_ready.columns:
+                df_confirmed = df_ready[df_ready["email_source"] == "found"].copy()
+                df_guessed   = df_ready[df_ready["email_source"] != "found"].copy()
+            else:
+                df_confirmed = df_ready.copy()
+                df_guessed   = pd.DataFrame()
 
-            # Summary row
-            s1, s2, s3 = st.columns(3)
-            with s1: _stat_card("Ready to send",  len(df_ready), "#2563eb")
-            with s2: _stat_card("Guessed emails",  guessed_count, "#f59e0b",
-                                 "lower deliverability" if guessed_count else "")
-            with s3:
-                est_preview = max(1, (min(20, len(df_ready)) * delay_sec) // 60)
+            confirmed_ct = len(df_confirmed)
+            guessed_ct   = len(df_guessed)
+
+            # ── Stats row ─────────────────────────────────────────────────────
+            s1, s2, s3, s4 = st.columns(4)
+            with s1: _stat_card("Total ready",       len(df_ready),  "#2563eb")
+            with s2: _stat_card("✅ Confirmed emails", confirmed_ct, "#16a34a",
+                                 "extracted from website")
+            with s3: _stat_card("🤔 Guessed emails",  guessed_ct,   "#f59e0b",
+                                 "pattern guess — risky")
+            with s4:
+                est_preview = max(1, (min(20, confirmed_ct) * delay_sec) // 60)
                 _stat_card("Est. time (20 emails)", f"~{est_preview} min", "#6b7280")
 
-            st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 
-            if "email_source" in df_ready.columns:
-                df_ready["Email source"] = df_ready["email_source"].map(
-                    lambda s: "Found" if s=="found" else ("Guessed" if s=="guessed" else "—"))
-            show_ready = [c for c in ["id","business_name","email","Email source",
-                                      "city","country","keyword"] if c in df_ready.columns]
-            st.dataframe(df_ready[show_ready], use_container_width=True, height=240)
+            # ── Guessed emails warning panel ──────────────────────────────────
+            if guessed_ct > 0:
+                st.markdown(
+                    f"<div style='background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;"
+                    f"padding:14px 18px;margin-bottom:16px;'>"
+                    f"<p style='font-size:13px;font-weight:700;color:#92400e;margin:0 0 4px;'>"
+                    f"⚠️  {guessed_ct} guessed email address{'es' if guessed_ct>1 else ''} detected</p>"
+                    f"<p style='font-size:12px;color:#78350f;margin:0;line-height:1.6;'>"
+                    f"These are <b>pattern guesses</b> (e.g. <code>info@domain.com</code>) — "
+                    f"the mailbox may not exist, causing bounces like the ones you saw. "
+                    f"It is strongly recommended to <b>delete these</b> or skip them. "
+                    f"Only send to confirmed emails (found on the business website).</p>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+                with st.expander(f"🗑️ Review & delete {guessed_ct} guessed-email lead(s)",
+                                 expanded=True):
+                    _g_disp = df_guessed.copy()
+                    _g_disp["Email source"] = _g_disp["email_source"].map(
+                        lambda s: "Guessed" if s == "guessed" else "—")
+                    _g_cols = [c for c in ["id","business_name","email","Email source",
+                                           "city","keyword"] if c in _g_disp.columns]
+                    st.dataframe(_g_disp[_g_cols], use_container_width=True,
+                                 hide_index=True, height=200)
+                    gcol1, gcol2 = st.columns([1, 2])
+                    with gcol1:
+                        if st.button("🗑️ Delete all guessed-email leads",
+                                     type="primary", use_container_width=True,
+                                     key="del_guessed"):
+                            delete_leads(df_guessed["id"].astype(int).tolist())
+                            st.success(f"Deleted {guessed_ct} guessed-email leads.")
+                            st.rerun()
+                    with gcol2:
+                        st.caption("Deleting removes them from your database entirely. "
+                                   "Re-run Find Leads on the same keyword to try again "
+                                   "with the improved email finder.")
 
-            sc1, sc2 = st.columns([3, 1])
-            with sc1:
-                max_send = st.slider("Number of emails to send",
-                    1, min(200, len(df_ready)), min(20, len(df_ready)))
-            with sc2:
-                est_mins = max(1, (max_send * delay_sec) // 60)
-                st.metric("Est. time", f"~{est_mins} min")
+            # ── Confirmed emails send panel ───────────────────────────────────
+            if confirmed_ct == 0:
+                st.info("No confirmed emails to send right now. "
+                        "Delete the guessed ones above and re-scrape, "
+                        "or wait for leads with real emails.")
+            else:
+                st.markdown(
+                    f"<p style='font-size:13px;font-weight:700;color:#374151;"
+                    f"margin:8px 0 6px;'>Send to {confirmed_ct} confirmed email(s)</p>",
+                    unsafe_allow_html=True,
+                )
+                _c_disp = df_confirmed.copy()
+                _c_disp["Email source"] = "✅ Found on website"
+                _c_cols = [c for c in ["id","business_name","email","Email source",
+                                       "city","country","keyword"] if c in _c_disp.columns]
+                st.dataframe(_c_disp[_c_cols], use_container_width=True,
+                             hide_index=True, height=220)
 
-            st.info(f"Sending **{max_send} emails** with **{delay_sec}s** between each. "
-                    f"Each lead is marked Sent immediately after delivery.")
+                sc1, sc2 = st.columns([3, 1])
+                with sc1:
+                    max_send = st.slider("Number of emails to send",
+                        1, min(200, confirmed_ct), min(20, confirmed_ct))
+                with sc2:
+                    est_mins = max(1, (max_send * delay_sec) // 60)
+                    st.metric("Est. time", f"~{est_mins} min")
 
-            if st.button(f"Send {max_send} emails", type="primary", use_container_width=True):
-                batch = df_ready.head(max_send).copy()
-                log_area = st.empty()
-                send_logs: list = []
-                def s_log(msg: str):
-                    send_logs.append(msg)
-                    log_area.markdown("```\n" + "\n".join(send_logs[-30:]) + "\n```")
+                st.info(
+                    f"Sending **{max_send} emails** to confirmed addresses only, "
+                    f"with **{delay_sec}s** between each. "
+                    f"Each lead is marked Sent immediately and will never be emailed again."
+                )
 
-                result = send_batch(leads_df=batch, sender_email=sender_email,
-                    app_password=app_password, sender_name=sender_name,
-                    delay_seconds=delay_sec, log_cb=s_log, update_status_cb=update_status)
+                if st.button(f"Send {max_send} emails", type="primary",
+                             use_container_width=True):
+                    batch = df_confirmed.head(max_send).copy()
+                    log_area  = st.empty()
+                    send_logs: list = []
 
-                rc1, rc2 = st.columns(2)
-                with rc1: _stat_card("Sent",   result["sent"],   "#16a34a")
-                with rc2: _stat_card("Failed", result["failed"], "#ef4444")
-                if result["errors"]:
-                    with st.expander("Error details"):
-                        for err in result["errors"]: st.text(err)
+                    def s_log(msg: str):
+                        send_logs.append(msg)
+                        log_area.markdown("```\n" + "\n".join(send_logs[-30:]) + "\n```")
+
+                    result = send_batch(
+                        leads_df=batch, sender_email=sender_email,
+                        app_password=app_password, sender_name=sender_name,
+                        delay_seconds=delay_sec, log_cb=s_log,
+                        update_status_cb=update_status,
+                    )
+
+                    rc1, rc2 = st.columns(2)
+                    with rc1: _stat_card("Sent",   result["sent"],   "#16a34a")
+                    with rc2: _stat_card("Failed", result["failed"], "#ef4444")
+                    if result["errors"]:
+                        with st.expander("Error details"):
+                            for err in result["errors"]: st.text(err)
 
 
 # ═════════════════════════════════════════════════════════════════════════════
