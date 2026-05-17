@@ -411,7 +411,7 @@ html, body, [class*="css"] {
 }
 .stApp { background: #f1f5f9 !important; }
 .block-container {
-    padding-top: 32px !important;
+    padding-top: 48px !important;
     padding-bottom: 60px !important;
     max-width: 1200px !important;
 }
@@ -543,7 +543,10 @@ div[data-baseweb="select"] > div:first-child {
 [data-testid="stSlider"] [role="slider"] { background: #4f46e5 !important; }
 
 /* ── Hide Streamlit chrome ── */
-#MainMenu, footer { display: none !important; }
+#MainMenu, footer, header,
+[data-testid="stToolbar"],
+[data-testid="stDecoration"],
+[data-testid="stStatusWidget"] { display: none !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -764,7 +767,7 @@ failed  = stats.get("failed",  0)
 
 # ── Title row ─────────────────────────────────────────────────────────────────
 st.markdown(
-    "<div style='padding:4px 0 20px;'>"
+    "<div style='padding:12px 0 20px;'>"
     "<div style='font-size:22px;font-weight:800;color:#0f172a;letter-spacing:-0.5px;'>"
     "SEO Outreach Engine</div>"
     "<div style='font-size:13px;color:#94a3b8;margin-top:3px;font-weight:400;'>"
