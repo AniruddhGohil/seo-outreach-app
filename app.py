@@ -254,6 +254,41 @@ def _login_page() -> bool:
             width: 100% !important;
             background: #f8f9fb !important;
         }
+
+        /* ── Google OAuth button ── */
+        [data-testid="stLinkButton"] a,
+        [data-testid="stBaseButton-secondary"],
+        .stLinkButton > a {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            background: white !important;
+            border: 1.5px solid #e2e8f0 !important;
+            border-radius: 12px !important;
+            color: #0f172a !important;
+            font-size: 15px !important;
+            font-weight: 600 !important;
+            height: 52px !important;
+            width: 100% !important;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06), 0 2px 12px rgba(0,0,0,0.04) !important;
+            transition: all 0.15s ease !important;
+            letter-spacing: -0.1px !important;
+            text-decoration: none !important;
+            gap: 10px !important;
+        }
+        [data-testid="stLinkButton"] a:hover,
+        [data-testid="stBaseButton-secondary"]:hover,
+        .stLinkButton > a:hover {
+            box-shadow: 0 4px 20px rgba(0,0,0,0.10) !important;
+            border-color: #cbd5e1 !important;
+            transform: translateY(-1px) !important;
+            background: #fafbff !important;
+        }
+        /* Container adjustments */
+        [data-testid="stLinkButton"],
+        [data-testid="stLinkButton"] > div {
+            width: 100% !important;
+        }
     </style>
     """, unsafe_allow_html=True)
 
@@ -292,18 +327,20 @@ def _login_page() -> bool:
 
         # ── Card container top ─────────────────────────────────────────────
         st.markdown("""
-        <div style="background:white; border-radius:20px;
-                    border:1px solid #e8ecf0;
-                    box-shadow:0 4px 24px rgba(0,0,0,0.06);
-                    padding:24px 40px 16px;">
+        <div style="background:white; border-radius:20px 20px 0 0;
+                    border:1px solid #e8ecf0; border-bottom:none;
+                    box-shadow:0 -2px 16px rgba(0,0,0,0.04);
+                    padding:24px 40px 20px;">
           <div style="font-size:16px; font-weight:700; color:#0f172a;
                       margin-bottom:4px; font-family:'Inter','Segoe UI',sans-serif;">
             Sign in to your workspace
           </div>
-          <div style="font-size:13px; color:#94a3b8; margin-bottom:16px; line-height:1.5;">
+          <div style="font-size:13px; color:#94a3b8; line-height:1.5;">
             Access is restricted to authorised accounts only.
           </div>
-          <div style="height:1px; background:#f1f5f9; margin-bottom:16px;"></div>
+        </div>
+        <div style="background:white; border-left:1px solid #e8ecf0;
+                    border-right:1px solid #e8ecf0; padding:16px 40px;">
         </div>
         """, unsafe_allow_html=True)
 
@@ -327,8 +364,8 @@ def _login_page() -> bool:
         st.markdown("""
         <div style="background:white; border-radius:0 0 20px 20px;
                     border:1px solid #e8ecf0; border-top:none;
-                    box-shadow:0 4px 24px rgba(0,0,0,0.06);
-                    padding:12px 40px 18px;">
+                    box-shadow:0 8px 24px rgba(0,0,0,0.06);
+                    padding:14px 40px 20px;">
           <div style="display:flex; justify-content:center; gap:20px;
                       flex-wrap:wrap; margin-top:4px;">
             <span style="font-size:12px; color:#cbd5e1; display:flex;
