@@ -905,6 +905,36 @@ with tab_find:
         with c3:
             country = st.selectbox("Country", list(COUNTRY_SCRAPERS.keys()))
 
+        cz1, cz2 = st.columns([2, 3])
+        with cz1:
+            zipcodes_raw = st.text_input(
+                "ZIP / Pin codes  *(optional)*",
+                placeholder="3000, 3001, 3002  or  560001",
+                help="Target specific postcodes or pin codes. Comma-separate multiple codes. "
+                     "When filled, each code is appended to the location for hyper-local targeting."
+            )
+        with cz2:
+            st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+            if zipcodes_raw.strip():
+                _zc_list = [z.strip() for z in zipcodes_raw.split(",") if z.strip()]
+                st.markdown(
+                    f"<div style='background:#eff6ff;border-radius:8px;padding:9px 14px;"
+                    f"font-size:13px;color:#1d4ed8;margin-top:20px;'>"
+                    f"📍 Will search {len(_zc_list)} postcode(s): "
+                    f"{' · '.join(_zc_list[:6])}{'…' if len(_zc_list) > 6 else ''}</div>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    "<div style='background:#f8fafc;border-radius:8px;padding:9px 14px;"
+                    "font-size:13px;color:#94a3b8;margin-top:20px;'>"
+                    "💡 Leave blank to search by city only, or enter postcodes for hyper-local results.</div>",
+                    unsafe_allow_html=True,
+                )
+
+        # Parse zip codes into a list for use during search
+        zipcodes = [z.strip() for z in zipcodes_raw.split(",") if z.strip()] if zipcodes_raw.strip() else []
+
         c4, c5 = st.columns(2)
         with c4:
             max_pages = st.slider("Results to fetch", 1, 10, 3, help="~10 businesses per page")
@@ -956,23 +986,32 @@ with tab_find:
                 log_lines.append(msg)
                 log_box.markdown("```\n" + "\n".join(log_lines[-30:]) + "\n```")
 
-            log(f"🔎 Searching: '{keyword}' in {location}, {country}")
-
-            # Save this search to history immediately (counts updated at end)
-            _search_id = save_search(keyword.strip(), location.strip(), country)
-
             _serper_key  = st.session_state.get("s_serper", "") or st.secrets.get("serper_key", "")
             _fsq_key     = st.session_state.get("s_fsq",    "") or st.secrets.get("foursquare_key", "")
             _gplaces_key = st.session_state.get("s_gplaces","") or st.secrets.get("google_places_key", "")
             _yelp_key    = st.session_state.get("s_yelp",   "") or st.secrets.get("yelp_api_key", "")
 
-            businesses = find_businesses(
-                keyword=keyword.strip(), location=location.strip(), country=country,
-                max_pages=max_pages + extra_pages,
-                skip_top=skip_top,
-                serper_key=_serper_key, foursquare_key=_fsq_key,
-                yelp_api_key=_yelp_key, google_places_key=_gplaces_key, log_cb=log,
-            )
+            # ── Build search locations: city only, or city + each zip code ────
+            if zipcodes:
+                _search_locations = [f"{location.strip()} {zc}" for zc in zipcodes]
+                log(f"🔎 Searching: '{keyword}' across {len(zipcodes)} postcode(s) in {location}, {country}")
+            else:
+                _search_locations = [location.strip()]
+                log(f"🔎 Searching: '{keyword}' in {location}, {country}")
+
+            businesses = []
+            for _loc in _search_locations:
+                _search_id = save_search(keyword.strip(), _loc, country)
+                log(f"  📍 Location: {_loc}")
+                _biz_batch = find_businesses(
+                    keyword=keyword.strip(), location=_loc, country=country,
+                    max_pages=max_pages + extra_pages,
+                    skip_top=skip_top,
+                    serper_key=_serper_key, foursquare_key=_fsq_key,
+                    yelp_api_key=_yelp_key, google_places_key=_gplaces_key, log_cb=log,
+                )
+                businesses.extend(_biz_batch)
+                log(f"  ✅ {len(_biz_batch)} found for {_loc}")
 
             if not businesses:
                 st.warning("No businesses found. Try a different keyword, location, or add a Serper API key.")
@@ -1058,7 +1097,8 @@ with tab_find:
                     preview_rows.append(biz)
 
             # Update search history with final counts
-            update_search_result(_search_id, len(businesses) + batch_dups, new_count)
+            if _search_id:
+                update_search_result(_search_id, len(businesses) + batch_dups, new_count)
 
             prog_bar.progress(100, text="Done!")
 
