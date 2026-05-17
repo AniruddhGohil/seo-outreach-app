@@ -262,14 +262,14 @@ def _login_page() -> bool:
 
     with centre:
         # Top breathing room
-        st.markdown("<div style='height:10vh'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='height:4vh'></div>", unsafe_allow_html=True)
 
         # ── Logo mark ──────────────────────────────────────────────────────
         st.markdown("""
-        <div style="text-align:center; margin-bottom:32px;">
+        <div style="text-align:center; margin-bottom:16px;">
           <div style="display:inline-flex; align-items:center; justify-content:center;
-                      width:64px; height:64px; background:#f0f4ff;
-                      border-radius:18px; font-size:30px;
+                      width:56px; height:56px; background:#f0f4ff;
+                      border-radius:16px; font-size:26px;
                       box-shadow:0 1px 3px rgba(0,0,0,0.08);">
             🚀
           </div>
@@ -278,13 +278,13 @@ def _login_page() -> bool:
 
         # ── Title + tagline ────────────────────────────────────────────────
         st.markdown("""
-        <div style="text-align:center; margin-bottom:40px;">
-          <div style="font-size:26px; font-weight:800; color:#0f172a;
-                      letter-spacing:-0.6px; margin-bottom:8px;
+        <div style="text-align:center; margin-bottom:20px;">
+          <div style="font-size:24px; font-weight:800; color:#0f172a;
+                      letter-spacing:-0.6px; margin-bottom:6px;
                       font-family:'Inter','Segoe UI',sans-serif;">
             SEO Outreach Engine
           </div>
-          <div style="font-size:15px; color:#94a3b8; font-weight:400; line-height:1.6;">
+          <div style="font-size:14px; color:#94a3b8; font-weight:400; line-height:1.5;">
             Find leads · Extract emails · Close clients
           </div>
         </div>
@@ -295,15 +295,15 @@ def _login_page() -> bool:
         <div style="background:white; border-radius:20px;
                     border:1px solid #e8ecf0;
                     box-shadow:0 4px 24px rgba(0,0,0,0.06);
-                    padding:36px 40px 28px;">
-          <div style="font-size:17px; font-weight:700; color:#0f172a;
-                      margin-bottom:6px; font-family:'Inter','Segoe UI',sans-serif;">
+                    padding:24px 40px 16px;">
+          <div style="font-size:16px; font-weight:700; color:#0f172a;
+                      margin-bottom:4px; font-family:'Inter','Segoe UI',sans-serif;">
             Sign in to your workspace
           </div>
-          <div style="font-size:13px; color:#94a3b8; margin-bottom:28px; line-height:1.6;">
+          <div style="font-size:13px; color:#94a3b8; margin-bottom:16px; line-height:1.5;">
             Access is restricted to authorised accounts only.
           </div>
-          <div style="height:1px; background:#f1f5f9; margin-bottom:24px;"></div>
+          <div style="height:1px; background:#f1f5f9; margin-bottom:16px;"></div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -328,7 +328,7 @@ def _login_page() -> bool:
         <div style="background:white; border-radius:0 0 20px 20px;
                     border:1px solid #e8ecf0; border-top:none;
                     box-shadow:0 4px 24px rgba(0,0,0,0.06);
-                    padding:20px 40px 28px;">
+                    padding:12px 40px 18px;">
           <div style="display:flex; justify-content:center; gap:20px;
                       flex-wrap:wrap; margin-top:4px;">
             <span style="font-size:12px; color:#cbd5e1; display:flex;
@@ -365,13 +365,13 @@ def _login_page() -> bool:
 
         # ── Footer ─────────────────────────────────────────────────────────
         st.markdown("""
-        <div style="text-align:center; margin-top:28px; font-size:12px; color:#cbd5e1;">
+        <div style="text-align:center; margin-top:16px; font-size:12px; color:#cbd5e1;">
           SEO Outreach Engine &nbsp;·&nbsp; Built for B2B cold email
         </div>
         """, unsafe_allow_html=True)
 
         # Bottom breathing room
-        st.markdown("<div style='height:10vh'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='height:4vh'></div>", unsafe_allow_html=True)
 
     if result and "token" in result:
         user_info = _decode_id_token(result["token"].get("id_token", ""))
