@@ -152,6 +152,32 @@ def get_leads(status: Optional[str] = None) -> pd.DataFrame:
         )
 
 
+def get_lead_by_id(lead_id: int) -> Optional[dict]:
+    """Return a single lead row as a dict, or None if not found."""
+    with get_conn() as conn:
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute("SELECT * FROM leads WHERE id = ? LIMIT 1", (lead_id,))
+        row = c.fetchone()
+        return dict(row) if row else None
+
+
+def set_leads_queued(lead_ids: List[int]):
+    """
+    Mark a batch of leads as 'queued' so the background sender can pick them up.
+    They are removed from the 'new' queue immediately, preventing double-sends.
+    """
+    if not lead_ids:
+        return
+    with get_conn() as conn:
+        placeholders = ",".join("?" * len(lead_ids))
+        conn.execute(
+            f"UPDATE leads SET status='queued' WHERE id IN ({placeholders})",
+            lead_ids,
+        )
+        conn.commit()
+
+
 def get_leads_with_email(status: str = "new") -> pd.DataFrame:
     with get_conn() as conn:
         return pd.read_sql_query(

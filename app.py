@@ -5,21 +5,136 @@ Streamlit web app: find SMB leads → extract emails → send cold outreach.
 import base64
 import io
 import json
+import random
+import threading
 import time
+from datetime import datetime
 
 import pandas as pd
 import streamlit as st
 from streamlit_oauth import OAuth2Component
 
+import bg_state
 from database import (
-    delete_leads, get_lead_by_email, get_leads, get_leads_with_email,
-    get_search_history, get_stats, init_db, insert_lead, is_duplicate_lead,
-    save_search, update_search_result, update_status, delete_search_history,
+    delete_leads, get_lead_by_email, get_lead_by_id, get_leads,
+    get_leads_with_email, get_search_history, get_stats, init_db,
+    insert_lead, is_duplicate_lead, save_search, set_leads_queued,
+    update_search_result, update_status, delete_search_history,
 )
 from email_finder import find_email_on_website
-from email_sender import send_batch
+from email_sender import send_email as _smtp_send_one
 from scraper import COUNTRY_SCRAPERS, find_businesses
 from templates import EMAIL_TEMPLATE_HTML, EMAIL_TEMPLATE_TEXT, SUBJECT_LINES
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Background email sender
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _background_send_worker(
+    lead_ids: list,
+    sender_email: str,
+    app_password: str,
+    sender_name: str,
+    delay_secs: int,
+):
+    """
+    Runs in a daemon thread.  Sends one email per lead_id, updating the DB
+    and bg_state.STATE after each send.  Respects cancel_requested flag.
+    """
+    for i, lead_id in enumerate(lead_ids):
+        # ── Check for cancellation ────────────────────────────────────────
+        with bg_state.LOCK:
+            if bg_state.STATE["cancel_requested"]:
+                break
+
+        lead = get_lead_by_id(lead_id)
+        if not lead or not lead.get("email"):
+            with bg_state.LOCK:
+                bg_state.STATE["done"] += 1
+            continue
+
+        # ── Update "currently sending" display ────────────────────────────
+        with bg_state.LOCK:
+            bg_state.STATE["current_biz"]   = lead.get("business_name", "")
+            bg_state.STATE["current_email"] = lead.get("email", "")
+
+        # ── Send ──────────────────────────────────────────────────────────
+        ok, msg = _smtp_send_one(
+            sender_email=sender_email,
+            app_password=app_password,
+            recipient_email=lead["email"],
+            business_name=lead.get("business_name", ""),
+            sender_name=sender_name,
+        )
+
+        update_status(lead_id, "sent" if ok else "failed")
+
+        with bg_state.LOCK:
+            bg_state.STATE["done"] += 1
+            if ok:
+                bg_state.STATE["sent"] += 1
+            else:
+                bg_state.STATE["failed"] += 1
+                bg_state.STATE["errors"].append(
+                    f"{lead.get('email','?')} ({lead.get('business_name','?')}): {msg}"
+                )
+
+        # ── Inter-email delay (chunked so cancellation is responsive) ─────
+        if i < len(lead_ids) - 1:
+            jitter = random.randint(-10, 10)
+            wait   = max(15, delay_secs + jitter)
+            for _ in range(wait * 2):          # check cancel every 0.5 s
+                time.sleep(0.5)
+                with bg_state.LOCK:
+                    if bg_state.STATE["cancel_requested"]:
+                        break
+
+    # ── Clean up ──────────────────────────────────────────────────────────
+    with bg_state.LOCK:
+        bg_state.STATE["running"]       = False
+        bg_state.STATE["current_biz"]   = ""
+        bg_state.STATE["current_email"] = ""
+        bg_state.STATE["finished_at"]   = datetime.now().strftime("%d %b %Y  %H:%M:%S")
+
+
+def _queue_and_send(lead_ids: list, sender_email: str,
+                    app_password: str, sender_name: str,
+                    delay_secs: int) -> bool:
+    """
+    Mark leads as 'queued' in the DB, then start the background thread.
+    Returns False if a send is already running.
+    """
+    with bg_state.LOCK:
+        if bg_state.STATE["running"]:
+            return False
+        # Reset state for new batch
+        bg_state.STATE.update({
+            "running":          True,
+            "cancel_requested": False,
+            "total":            len(lead_ids),
+            "done":             0,
+            "sent":             0,
+            "failed":           0,
+            "current_biz":      "",
+            "current_email":    "",
+            "errors":           [],
+            "started_at":       datetime.now().strftime("%d %b %Y  %H:%M:%S"),
+            "finished_at":      None,
+            "delay_secs":       delay_secs,
+        })
+
+    set_leads_queued(lead_ids)   # move from 'new' → 'queued' immediately
+
+    t = threading.Thread(
+        target=_background_send_worker,
+        args=(lead_ids, sender_email, app_password, sender_name, delay_secs),
+        daemon=True,
+        name="email-sender",
+    )
+    bg_state._thread = t
+    t.start()
+    return True
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Page config  (must be first Streamlit call)
@@ -461,6 +576,26 @@ with st.sidebar:
             st.session_state.pop(key, None)
         st.rerun()
 
+    # ── Background send indicator ─────────────────────────────────────────
+    with bg_state.LOCK:
+        _snap = dict(bg_state.STATE)
+    if _snap["running"]:
+        _pct = int(_snap["done"] / _snap["total"] * 100) if _snap["total"] else 0
+        st.markdown(
+            f"<div style='background:#052e16;border:1px solid #166534;border-radius:8px;"
+            f"padding:10px 12px;margin:8px 0;'>"
+            f"<div style='font-size:11px;font-weight:700;color:#4ade80;"
+            f"letter-spacing:0.5px;margin-bottom:4px;'>📤 SENDING IN BACKGROUND</div>"
+            f"<div style='font-size:12px;color:#86efac;'>"
+            f"{_snap['sent']} sent · {_snap['failed']} failed · "
+            f"{_snap['total'] - _snap['done']} remaining</div>"
+            f"<div style='background:#166534;border-radius:99px;height:4px;"
+            f"margin-top:8px;overflow:hidden;'>"
+            f"<div style='width:{_pct}%;height:4px;background:#4ade80;'></div>"
+            f"</div></div>",
+            unsafe_allow_html=True,
+        )
+
     st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
     st.divider()
 
@@ -526,13 +661,14 @@ def _smtp_ready() -> bool:
 # ─────────────────────────────────────────────────────────────────────────────
 # Top bar
 # ─────────────────────────────────────────────────────────────────────────────
-stats = get_stats()
-total  = stats.get("total",    0)
-sent   = stats.get("sent",     0)
-ready  = stats.get("new",      0)
-failed = stats.get("failed",   0)
+stats   = get_stats()
+total   = stats.get("total",   0)
+sent    = stats.get("sent",    0)
+ready   = stats.get("new",     0)
+queued  = stats.get("queued",  0)
+failed  = stats.get("failed",  0)
 
-h1, h2, h3, h4 = st.columns([3, 1, 1, 1])
+h1, h2, h3, h4, h5 = st.columns([3, 1, 1, 1, 1])
 with h1:
     st.markdown(
         "<h1 style='font-size:22px;font-weight:700;color:#111827;margin:0;padding:8px 0;'>"
@@ -546,7 +682,9 @@ with h2:
 with h3:
     st.metric("Emails sent", sent)
 with h4:
-    st.metric("Ready to send", ready)
+    st.metric("In queue", queued)
+with h5:
+    st.metric("Ready", ready)
 
 st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
@@ -895,136 +1033,205 @@ with tab_send:
                 business_name="ABC Plumbing", sender_name=sender_name,
                 sender_email=sender_email), unsafe_allow_html=True)
 
+        # ── Read background state (thread-safe snapshot) ──────────────────────
+        with bg_state.LOCK:
+            _bg = dict(bg_state.STATE)
+            _bg["errors"] = list(bg_state.STATE["errors"])   # copy the list too
+        _thread_alive = (
+            bg_state._thread is not None and bg_state._thread.is_alive()
+        )
+        _is_running = _bg["running"] or _thread_alive
+
+        # ── PANEL A — Background progress (shown when send is active) ─────────
+        if _is_running or _bg["finished_at"]:
+            _pct = (int(_bg["done"] / _bg["total"] * 100)
+                    if _bg["total"] > 0 else 0)
+
+            if _is_running:
+                # Running header
+                st.markdown(
+                    "<div style='background:#f0fdf4;border:1px solid #bbf7d0;"
+                    "border-radius:10px;padding:16px 20px;margin-bottom:16px;'>"
+                    "<div style='font-size:14px;font-weight:700;color:#15803d;"
+                    "margin-bottom:4px;'>📤 Sending emails in the background</div>"
+                    "<div style='font-size:13px;color:#166534;'>"
+                    "You can switch tabs, minimise this window, or leave it open — "
+                    "emails keep going. Come back here and click "
+                    "<b>Refresh status</b> to see progress.</div>"
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    "<div style='background:#f0fdf4;border:1px solid #bbf7d0;"
+                    "border-radius:10px;padding:14px 20px;margin-bottom:16px;'>"
+                    "<div style='font-size:14px;font-weight:700;color:#15803d;'>"
+                    f"✅ Background send finished — {_bg['sent']} sent, "
+                    f"{_bg['failed']} failed</div>"
+                    f"<div style='font-size:12px;color:#166534;margin-top:2px;'>"
+                    f"Started {_bg['started_at']} · Finished {_bg['finished_at']}</div>"
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
+
+            # Progress stats
+            pa1, pa2, pa3, pa4 = st.columns(4)
+            with pa1: _stat_card("Sent",      _bg["sent"],                    "#16a34a")
+            with pa2: _stat_card("Failed",    _bg["failed"],                  "#ef4444")
+            with pa3: _stat_card("Remaining", max(0, _bg["total"]-_bg["done"]), "#6b7280")
+            with pa4: _stat_card("Total",     _bg["total"],                   "#2563eb")
+
+            # Progress bar
+            st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+            st.progress(_pct / 100,
+                        text=(f"Processing {_bg['done']}/{_bg['total']} — "
+                              f"currently: {_bg['current_biz'] or 'waiting…'}")
+                        if _is_running else
+                        f"Complete ({_bg['done']}/{_bg['total']})")
+
+            if _bg.get("current_email") and _is_running:
+                st.caption(f"Sending to: {_bg['current_email']}")
+
+            # Controls
+            ctrl1, ctrl2 = st.columns([1, 3])
+            with ctrl1:
+                if st.button("🔄 Refresh status", use_container_width=True):
+                    st.rerun()
+            with ctrl2:
+                if _is_running and not _bg["cancel_requested"]:
+                    if st.button("⏹ Stop after current email",
+                                 use_container_width=True):
+                        with bg_state.LOCK:
+                            bg_state.STATE["cancel_requested"] = True
+                        st.warning("Stop requested — finishing the current email "
+                                   "then halting. Remaining leads stay as 'queued'.")
+                elif _bg["cancel_requested"] and _is_running:
+                    st.info("⏳ Stopping after this email…")
+
+            # Errors
+            if _bg["errors"]:
+                with st.expander(f"⚠️ {len(_bg['errors'])} delivery error(s)"):
+                    for err in _bg["errors"]:
+                        st.text(err)
+
+            st.divider()
+
+        # ── PANEL B — Queue panel (new confirmed leads waiting to be sent) ─────
         df_ready = get_leads_with_email(status="new")
 
-        if df_ready.empty:
-            st.markdown(
-                "<div style='background:white;border-radius:12px;padding:48px 24px;"
-                "text-align:center;border:1px solid #e9ecef;'>"
-                "<p style='font-size:32px;margin:0 0 12px;'>📭</p>"
-                "<p style='font-size:16px;font-weight:600;color:#111827;margin:0 0 6px;'>"
-                "No leads ready to send</p>"
-                "<p style='font-size:13px;color:#9ca3af;margin:0;'>"
-                "All leads have been emailed, or no emails were found yet.<br>"
-                "Go to Find Leads with auto-extract enabled to get new leads.</p>"
-                "</div>", unsafe_allow_html=True)
+        # Split confirmed vs guessed
+        if "email_source" in df_ready.columns and not df_ready.empty:
+            df_confirmed = df_ready[df_ready["email_source"] == "found"].copy()
+            df_guessed   = df_ready[df_ready["email_source"] != "found"].copy()
         else:
-            # ── Split confirmed vs guessed ────────────────────────────────────
-            if "email_source" in df_ready.columns:
-                df_confirmed = df_ready[df_ready["email_source"] == "found"].copy()
-                df_guessed   = df_ready[df_ready["email_source"] != "found"].copy()
-            else:
-                df_confirmed = df_ready.copy()
-                df_guessed   = pd.DataFrame()
+            df_confirmed = df_ready.copy()
+            df_guessed   = pd.DataFrame()
 
-            confirmed_ct = len(df_confirmed)
-            guessed_ct   = len(df_guessed)
+        confirmed_ct = len(df_confirmed)
+        guessed_ct   = len(df_guessed)
 
-            # ── Stats row ─────────────────────────────────────────────────────
-            s1, s2, s3, s4 = st.columns(4)
-            with s1: _stat_card("Total ready",       len(df_ready),  "#2563eb")
-            with s2: _stat_card("✅ Confirmed emails", confirmed_ct, "#16a34a",
+        # Guessed-email warning
+        if guessed_ct > 0:
+            st.markdown(
+                f"<div style='background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;"
+                f"padding:14px 18px;margin-bottom:16px;'>"
+                f"<p style='font-size:13px;font-weight:700;color:#92400e;margin:0 0 4px;'>"
+                f"⚠️  {guessed_ct} guessed email address"
+                f"{'es' if guessed_ct > 1 else ''} in queue</p>"
+                f"<p style='font-size:12px;color:#78350f;margin:0;line-height:1.6;'>"
+                f"These are <b>pattern guesses</b> (e.g. <code>info@domain.com</code>) and "
+                f"will likely bounce. Delete them and re-scrape with the improved finder.</p>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+            with st.expander(f"🗑️ Review & delete {guessed_ct} guessed-email lead(s)"):
+                _g_disp = df_guessed.copy()
+                _g_disp["Source"] = "🤔 Guessed"
+                _gc = [c for c in ["id","business_name","email","Source","city","keyword"]
+                       if c in _g_disp.columns]
+                st.dataframe(_g_disp[_gc], use_container_width=True,
+                             hide_index=True, height=180)
+                if st.button("🗑️ Delete all guessed-email leads", type="primary",
+                             key="del_guessed"):
+                    delete_leads(df_guessed["id"].astype(int).tolist())
+                    st.success(f"Deleted {guessed_ct} leads.")
+                    st.rerun()
+
+        if confirmed_ct == 0:
+            if not _is_running:
+                st.markdown(
+                    "<div style='background:white;border-radius:12px;padding:48px 24px;"
+                    "text-align:center;border:1px solid #e9ecef;'>"
+                    "<p style='font-size:32px;margin:0 0 12px;'>📭</p>"
+                    "<p style='font-size:16px;font-weight:600;color:#111827;margin:0 0 6px;'>"
+                    "No confirmed leads ready</p>"
+                    "<p style='font-size:13px;color:#9ca3af;margin:0;'>"
+                    "Go to Find Leads to scrape more businesses.</p>"
+                    "</div>", unsafe_allow_html=True)
+        else:
+            # Summary stats
+            s1, s2, s3 = st.columns(3)
+            with s1: _stat_card("Confirmed leads ready", confirmed_ct, "#16a34a",
                                  "extracted from website")
-            with s3: _stat_card("🤔 Guessed emails",  guessed_ct,   "#f59e0b",
-                                 "pattern guess — risky")
-            with s4:
-                est_preview = max(1, (min(20, confirmed_ct) * delay_sec) // 60)
-                _stat_card("Est. time (20 emails)", f"~{est_preview} min", "#6b7280")
+            with s2:
+                est_mins = max(1, (min(confirmed_ct, 20) * delay_sec) // 60)
+                _stat_card("Est. for 20 emails", f"~{est_mins} min", "#6b7280")
+            with s3: _stat_card("Delay between sends", f"{delay_sec}s", "#7c3aed")
 
-            st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
-            # ── Guessed emails warning panel ──────────────────────────────────
-            if guessed_ct > 0:
-                st.markdown(
-                    f"<div style='background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;"
-                    f"padding:14px 18px;margin-bottom:16px;'>"
-                    f"<p style='font-size:13px;font-weight:700;color:#92400e;margin:0 0 4px;'>"
-                    f"⚠️  {guessed_ct} guessed email address{'es' if guessed_ct>1 else ''} detected</p>"
-                    f"<p style='font-size:12px;color:#78350f;margin:0;line-height:1.6;'>"
-                    f"These are <b>pattern guesses</b> (e.g. <code>info@domain.com</code>) — "
-                    f"the mailbox may not exist, causing bounces like the ones you saw. "
-                    f"It is strongly recommended to <b>delete these</b> or skip them. "
-                    f"Only send to confirmed emails (found on the business website).</p>"
-                    f"</div>",
-                    unsafe_allow_html=True,
+            # Confirmed leads table
+            _c_disp = df_confirmed.copy()
+            _c_disp["Email"] = "✅ " + _c_disp["email"].fillna("")
+            _cc = [c for c in ["id","business_name","Email","city","country","keyword"]
+                   if c in _c_disp.columns]
+            st.dataframe(_c_disp[_cc], use_container_width=True,
+                         hide_index=True, height=220)
+
+            sc1, sc2 = st.columns([3, 1])
+            with sc1:
+                max_send = st.slider(
+                    "How many emails to queue?",
+                    1, min(200, confirmed_ct), min(20, confirmed_ct),
                 )
-                with st.expander(f"🗑️ Review & delete {guessed_ct} guessed-email lead(s)",
-                                 expanded=True):
-                    _g_disp = df_guessed.copy()
-                    _g_disp["Email source"] = _g_disp["email_source"].map(
-                        lambda s: "Guessed" if s == "guessed" else "—")
-                    _g_cols = [c for c in ["id","business_name","email","Email source",
-                                           "city","keyword"] if c in _g_disp.columns]
-                    st.dataframe(_g_disp[_g_cols], use_container_width=True,
-                                 hide_index=True, height=200)
-                    gcol1, gcol2 = st.columns([1, 2])
-                    with gcol1:
-                        if st.button("🗑️ Delete all guessed-email leads",
-                                     type="primary", use_container_width=True,
-                                     key="del_guessed"):
-                            delete_leads(df_guessed["id"].astype(int).tolist())
-                            st.success(f"Deleted {guessed_ct} guessed-email leads.")
-                            st.rerun()
-                    with gcol2:
-                        st.caption("Deleting removes them from your database entirely. "
-                                   "Re-run Find Leads on the same keyword to try again "
-                                   "with the improved email finder.")
+            with sc2:
+                est_total = max(1, (max_send * delay_sec) // 60)
+                st.metric("Est. total time", f"~{est_total} min")
 
-            # ── Confirmed emails send panel ───────────────────────────────────
-            if confirmed_ct == 0:
-                st.info("No confirmed emails to send right now. "
-                        "Delete the guessed ones above and re-scrape, "
-                        "or wait for leads with real emails.")
+            st.markdown(
+                f"<div style='background:#eff6ff;border-radius:8px;padding:12px 16px;"
+                f"font-size:13px;color:#1d4ed8;margin:8px 0;'>"
+                f"<b>How it works:</b> Click the button below and walk away. "
+                f"{max_send} emails will be sent in the background with {delay_sec}s gaps. "
+                f"You'll see live progress in the green sidebar indicator and here "
+                f"when you come back. Each address is emailed only once, ever.</div>",
+                unsafe_allow_html=True,
+            )
+
+            if _is_running:
+                st.warning("⏳ A send is already running in the background. "
+                           "Wait for it to finish or stop it before queuing more.")
             else:
-                st.markdown(
-                    f"<p style='font-size:13px;font-weight:700;color:#374151;"
-                    f"margin:8px 0 6px;'>Send to {confirmed_ct} confirmed email(s)</p>",
-                    unsafe_allow_html=True,
-                )
-                _c_disp = df_confirmed.copy()
-                _c_disp["Email source"] = "✅ Found on website"
-                _c_cols = [c for c in ["id","business_name","email","Email source",
-                                       "city","country","keyword"] if c in _c_disp.columns]
-                st.dataframe(_c_disp[_c_cols], use_container_width=True,
-                             hide_index=True, height=220)
-
-                sc1, sc2 = st.columns([3, 1])
-                with sc1:
-                    max_send = st.slider("Number of emails to send",
-                        1, min(200, confirmed_ct), min(20, confirmed_ct))
-                with sc2:
-                    est_mins = max(1, (max_send * delay_sec) // 60)
-                    st.metric("Est. time", f"~{est_mins} min")
-
-                st.info(
-                    f"Sending **{max_send} emails** to confirmed addresses only, "
-                    f"with **{delay_sec}s** between each. "
-                    f"Each lead is marked Sent immediately and will never be emailed again."
-                )
-
-                if st.button(f"Send {max_send} emails", type="primary",
-                             use_container_width=True):
-                    batch = df_confirmed.head(max_send).copy()
-                    log_area  = st.empty()
-                    send_logs: list = []
-
-                    def s_log(msg: str):
-                        send_logs.append(msg)
-                        log_area.markdown("```\n" + "\n".join(send_logs[-30:]) + "\n```")
-
-                    result = send_batch(
-                        leads_df=batch, sender_email=sender_email,
-                        app_password=app_password, sender_name=sender_name,
-                        delay_seconds=delay_sec, log_cb=s_log,
-                        update_status_cb=update_status,
+                if st.button(
+                    f"📤 Queue {max_send} email{'s' if max_send > 1 else ''} "
+                    f"& send in background",
+                    type="primary",
+                    use_container_width=True,
+                ):
+                    ids = df_confirmed.head(max_send)["id"].astype(int).tolist()
+                    started = _queue_and_send(
+                        ids, sender_email, app_password, sender_name, delay_sec
                     )
-
-                    rc1, rc2 = st.columns(2)
-                    with rc1: _stat_card("Sent",   result["sent"],   "#16a34a")
-                    with rc2: _stat_card("Failed", result["failed"], "#ef4444")
-                    if result["errors"]:
-                        with st.expander("Error details"):
-                            for err in result["errors"]: st.text(err)
+                    if started:
+                        st.success(
+                            f"✅ {max_send} email(s) queued! Sending in the background. "
+                            f"You can close this tab or navigate away — come back to "
+                            f"check progress anytime."
+                        )
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error("Could not start — another send is already running.")
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1033,12 +1240,13 @@ with tab_send:
 with tab_analytics:
     _section("Analytics")
 
-    a1, a2, a3, a4, a5 = st.columns(5)
-    with a1: _stat_card("Total leads",  stats.get("total",    0), "#2563eb")
-    with a2: _stat_card("New (unsent)", stats.get("new",      0), "#7c3aed", "go to Send Emails")
-    with a3: _stat_card("Emails sent",  stats.get("sent",     0), "#16a34a")
-    with a4: _stat_card("Failed",       stats.get("failed",   0), "#ef4444")
-    with a5: _stat_card("No email",     stats.get("no_email", 0), "#f59e0b")
+    a1, a2, a3, a4, a5, a6 = st.columns(6)
+    with a1: _stat_card("Total leads",    stats.get("total",   0), "#2563eb")
+    with a2: _stat_card("New (unsent)",   stats.get("new",     0), "#7c3aed", "go to Send Emails")
+    with a3: _stat_card("Queued / sending", stats.get("queued",0), "#0284c7")
+    with a4: _stat_card("Emails sent",   stats.get("sent",     0), "#16a34a")
+    with a5: _stat_card("Failed",        stats.get("failed",   0), "#ef4444")
+    with a6: _stat_card("No email",      stats.get("no_email", 0), "#f59e0b")
 
     st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
