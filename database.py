@@ -1,6 +1,6 @@
 """
-database.py – SQLite persistence layer for leads.
-Schema version: 2 (email_source column, is_duplicate_lead helper)
+database.py – SQLite persistence layer for leads and search history.
+Schema version: 3  (search_history table, get_lead_by_email helper)
 """
 import sqlite3
 import pandas as pd
@@ -17,6 +17,7 @@ def get_conn() -> sqlite3.Connection:
 def init_db():
     """Create tables and apply any missing schema migrations."""
     with get_conn() as conn:
+        # ── Leads table ──────────────────────────────────────────────────────
         conn.execute("""
             CREATE TABLE IF NOT EXISTS leads (
                 id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -39,13 +40,31 @@ def init_db():
             CREATE UNIQUE INDEX IF NOT EXISTS idx_email
             ON leads(email) WHERE email IS NOT NULL AND email != ''
         """)
-        # Migration: add email_source column to existing databases
+        # Migration v2: add email_source column to existing databases
         try:
             conn.execute("ALTER TABLE leads ADD COLUMN email_source TEXT")
         except sqlite3.OperationalError:
             pass  # column already exists
+
+        # ── Search history table ─────────────────────────────────────────────
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS search_history (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                keyword        TEXT NOT NULL,
+                location       TEXT NOT NULL,
+                country        TEXT NOT NULL,
+                results_count  INTEGER DEFAULT 0,
+                new_leads      INTEGER DEFAULT 0,
+                created_at     TEXT DEFAULT (datetime('now'))
+            )
+        """)
+
         conn.commit()
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Leads
+# ─────────────────────────────────────────────────────────────────────────────
 
 def insert_lead(lead: dict) -> bool:
     """
@@ -103,6 +122,24 @@ def is_duplicate_lead(website: str = "", phone: str = "") -> bool:
     return False
 
 
+def get_lead_by_email(email: str) -> Optional[dict]:
+    """
+    Return the first lead row that has this email address, or None.
+    Used to detect email-level duplicates before inserting a new lead.
+    """
+    if not email or not email.strip():
+        return None
+    with get_conn() as conn:
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute(
+            "SELECT * FROM leads WHERE email = ? LIMIT 1",
+            (email.strip().lower(),),
+        )
+        row = c.fetchone()
+        return dict(row) if row else None
+
+
 def get_leads(status: Optional[str] = None) -> pd.DataFrame:
     with get_conn() as conn:
         if status and status != "all":
@@ -153,3 +190,46 @@ def get_stats() -> dict:
         stats[status] = count
         stats["total"] += count
     return stats
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Search history
+# ─────────────────────────────────────────────────────────────────────────────
+
+def save_search(keyword: str, location: str, country: str,
+                results_count: int = 0, new_leads: int = 0) -> int:
+    """
+    Record a search query in history.
+    Returns the row ID so counts can be updated afterwards with update_search_result().
+    """
+    with get_conn() as conn:
+        cursor = conn.execute("""
+            INSERT INTO search_history (keyword, location, country, results_count, new_leads)
+            VALUES (?, ?, ?, ?, ?)
+        """, (keyword.strip(), location.strip(), country, results_count, new_leads))
+        conn.commit()
+        return cursor.lastrowid
+
+
+def update_search_result(search_id: int, results_count: int, new_leads: int):
+    """Update the result counts for a previously saved search."""
+    with get_conn() as conn:
+        conn.execute("""
+            UPDATE search_history SET results_count=?, new_leads=? WHERE id=?
+        """, (results_count, new_leads, search_id))
+        conn.commit()
+
+
+def get_search_history(limit: int = 30) -> pd.DataFrame:
+    """Return recent searches, most recent first."""
+    with get_conn() as conn:
+        return pd.read_sql_query("""
+            SELECT * FROM search_history ORDER BY created_at DESC LIMIT ?
+        """, conn, params=(limit,))
+
+
+def delete_search_history():
+    """Wipe all search history records."""
+    with get_conn() as conn:
+        conn.execute("DELETE FROM search_history")
+        conn.commit()

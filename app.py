@@ -12,8 +12,9 @@ import streamlit as st
 from streamlit_oauth import OAuth2Component
 
 from database import (
-    delete_leads, get_leads, get_leads_with_email,
-    get_stats, init_db, insert_lead, is_duplicate_lead, update_status,
+    delete_leads, get_lead_by_email, get_leads, get_leads_with_email,
+    get_search_history, get_stats, init_db, insert_lead, is_duplicate_lead,
+    save_search, update_search_result, update_status, delete_search_history,
 )
 from email_finder import find_email_on_website
 from email_sender import send_batch
@@ -566,6 +567,46 @@ with tab_find:
     _section("Find Leads",
              "Search Google Maps for businesses, then visit each website to extract contact emails.")
 
+    # ── Search history ────────────────────────────────────────────────────────
+    _hist_df = get_search_history(limit=30)
+    if not _hist_df.empty:
+        with st.expander(f"🕒 Recent searches ({len(_hist_df)})", expanded=False):
+            # Pivot for display
+            _disp = _hist_df[["keyword", "location", "country",
+                               "results_count", "new_leads", "created_at"]].copy()
+            _disp.columns = ["Keyword", "Location", "Country",
+                             "Businesses found", "New leads saved", "Searched at"]
+            _disp["Searched at"] = pd.to_datetime(
+                _disp["Searched at"]).dt.strftime("%d %b %Y  %H:%M")
+            st.dataframe(_disp, use_container_width=True, hide_index=True, height=220)
+            # Group to show which keyword+location combos already searched
+            _combos = (
+                _hist_df.groupby(["keyword", "location", "country"])
+                .agg(times=("id", "count"), last_at=("created_at", "max"),
+                     total_leads=("new_leads", "sum"))
+                .reset_index()
+                .sort_values("last_at", ascending=False)
+            )
+            st.markdown(
+                "<p style='font-size:12px;color:#9ca3af;margin:8px 0 4px;'>"
+                "Unique keyword × location combinations searched so far:</p>",
+                unsafe_allow_html=True,
+            )
+            for _, row in _combos.iterrows():
+                st.markdown(
+                    f"<span style='font-size:13px;'>🔍 <b>{row['keyword']}</b> "
+                    f"· {row['location']}, {row['country']} "
+                    f"<span style='color:#9ca3af;'>— searched {row['times']}× "
+                    f"· {int(row['total_leads'])} new leads total</span></span>",
+                    unsafe_allow_html=True,
+                )
+            st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+            if st.button("🗑️ Clear search history", use_container_width=False):
+                delete_search_history()
+                st.rerun()
+
+    st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+
     with st.container():
         c1, c2, c3 = st.columns([2, 2, 1])
         with c1:
@@ -628,6 +669,9 @@ with tab_find:
 
             log(f"🔎 Searching: '{keyword}' in {location}, {country}")
 
+            # Save this search to history immediately (counts updated at end)
+            _search_id = save_search(keyword.strip(), location.strip(), country)
+
             _serper_key  = st.session_state.get("s_serper", "") or st.secrets.get("serper_key", "")
             _fsq_key     = st.session_state.get("s_fsq",    "") or st.secrets.get("foursquare_key", "")
             _gplaces_key = st.session_state.get("s_gplaces","") or st.secrets.get("google_places_key", "")
@@ -645,7 +689,7 @@ with tab_find:
                 st.warning("No businesses found. Try a different keyword, location, or add a Serper API key.")
                 st.stop()
 
-            # ── Dedup within this batch ───────────────────────────────────────
+            # ── Dedup within this batch by website + phone ────────────────────
             seen_ws: set = set()
             seen_ph: set = set()
             unique_biz   = []
@@ -664,73 +708,104 @@ with tab_find:
             if batch_dups:
                 log(f"🔁 Removed {batch_dups} duplicates within this batch.")
 
-            new_count   = 0
-            no_email_ct = 0
-            skipped_ct  = 0
+            new_count    = 0
+            no_email_ct  = 0
+            skipped_ct   = 0
+            email_dup_ct = 0
+            preview_rows = []   # collect processed rows for the results preview
 
             for idx, biz in enumerate(businesses):
                 pct = int((idx + 1) / len(businesses) * 100)
                 prog_bar.progress(pct, text=f"Processing {idx+1}/{len(businesses)}: {biz.get('business_name','')}")
 
-                # Skip if already in database
+                # ── Skip if website/phone already in DB ───────────────────────
                 if is_duplicate_lead(website=biz.get("website",""), phone=biz.get("phone","")):
                     log(f"⏭️  Already in DB — skipping: {biz.get('business_name','')}")
                     skipped_ct += 1
                     continue
 
-                # Email discovery
+                # ── Email discovery ───────────────────────────────────────────
                 if auto_email and biz.get("website"):
                     log(f"🔗  {biz['business_name']} → {biz['website']}")
                     email, email_source = find_email_on_website(biz["website"])
                     if email:
+                        # ── Email-level dedup: has this address been sent before? ──
+                        existing = get_lead_by_email(email)
+                        if existing:
+                            _est = existing.get("status", "unknown")
+                            _ebn = existing.get("business_name", "another lead")
+                            _status_label = {
+                                "sent":     "already emailed",
+                                "new":      "already in queue",
+                                "failed":   "previous send failed",
+                                "no_email": "stored without email",
+                            }.get(_est, _est)
+                            log(f"    ⏭️  {email} already in DB ({_status_label} · {_ebn})")
+                            email_dup_ct += 1
+                            skipped_ct   += 1
+                            continue
+
                         biz["email"]        = email
                         biz["email_source"] = email_source
                         icon = "🤔" if email_source == "guessed" else "📧"
                         note = "  (pattern guess)" if email_source == "guessed" else "  ✅"
                         log(f"    {icon}  {email}{note}")
                     else:
-                        biz["email"] = None; biz["email_source"] = None
-                        biz["status"] = "no_email"
+                        biz["email"]        = None
+                        biz["email_source"] = None
+                        biz["status"]       = "no_email"
                         log("    ⚠️  No email found")
                 elif not auto_email:
-                    biz["email"] = None; biz["email_source"] = None; biz["status"] = "no_email"
+                    biz["email"]        = None
+                    biz["email_source"] = None
+                    biz["status"]       = "no_email"
 
                 if not biz.get("email"):
                     no_email_ct += 1
 
-                if insert_lead(biz):
+                inserted = insert_lead(biz)
+                if inserted:
                     new_count += 1
+                    preview_rows.append(biz)
+
+            # Update search history with final counts
+            update_search_result(_search_id, len(businesses) + batch_dups, new_count)
 
             prog_bar.progress(100, text="Done!")
 
             st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
-            r1, r2, r3, r4 = st.columns(4)
+            r1, r2, r3, r4, r5 = st.columns(5)
             with r1:
-                _stat_card("Businesses found",  len(businesses) + batch_dups, "#2563eb")
+                _stat_card("Found",          len(businesses) + batch_dups, "#2563eb")
             with r2:
-                _stat_card("New leads saved",   new_count,  "#16a34a",
+                _stat_card("New leads saved", new_count,  "#16a34a",
                            "ready to email" if new_count else "")
             with r3:
-                _stat_card("Already in DB",     skipped_ct, "#7c3aed",
-                           "API quota saved" if skipped_ct else "")
+                _stat_card("Already in DB",  skipped_ct, "#7c3aed",
+                           "quota saved" if skipped_ct else "")
             with r4:
-                _stat_card("No email found",    no_email_ct, "#ef4444")
+                _stat_card("Email already sent", email_dup_ct, "#f59e0b",
+                           "protected" if email_dup_ct else "")
+            with r5:
+                _stat_card("No email found", no_email_ct, "#ef4444")
 
             if new_count > 0:
-                st.success(f"{new_count} new leads saved — go to Send Emails to reach out.")
+                st.success(f"✅ {new_count} new leads saved — go to **Send Emails** to reach out.")
+            elif skipped_ct == len(businesses):
+                st.info("All businesses from this search are already in your database. "
+                        "Try a different keyword or location to find fresh leads.")
 
-            df_prev = pd.DataFrame([b for b in businesses if not is_duplicate_lead(
-                website=b.get("website",""), phone=b.get("phone","")
-            )])
-            if not df_prev.empty:
+            if preview_rows:
                 st.markdown("<p style='font-size:13px;font-weight:600;color:#374151;"
-                            "margin:16px 0 8px;'>Results preview</p>", unsafe_allow_html=True)
+                            "margin:16px 0 8px;'>Newly saved leads preview</p>",
+                            unsafe_allow_html=True)
+                df_prev = pd.DataFrame(preview_rows)
                 if "email_source" in df_prev.columns:
-                    df_prev["Email"] = df_prev["email_source"].map(
-                        lambda s: "Found" if s == "found" else ("Guessed" if s == "guessed" else "—")
+                    df_prev["Email status"] = df_prev["email_source"].map(
+                        lambda s: "✅ Found" if s == "found" else ("🤔 Guessed" if s == "guessed" else "—")
                     )
                 show_cols = [c for c in
-                    ["business_name","email","Email","phone","website","address","city","source"]
+                    ["business_name","email","Email status","phone","website","address","city","source"]
                     if c in df_prev.columns]
                 st.dataframe(df_prev[show_cols], use_container_width=True)
 
@@ -954,3 +1029,34 @@ with tab_analytics:
                     "Leads by keyword</p>", unsafe_allow_html=True)
         kc = df_all.groupby("keyword").size().reset_index(name="count")
         st.bar_chart(kc.set_index("keyword"), color="#16a34a", height=200)
+
+    # ── Search history table ──────────────────────────────────────────────────
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+    _section("Search History", "Every keyword × location combination you have ever searched.")
+    _sh = get_search_history(limit=50)
+    if _sh.empty:
+        st.info("No searches recorded yet.")
+    else:
+        _sh_disp = _sh[["keyword", "location", "country",
+                         "results_count", "new_leads", "created_at"]].copy()
+        _sh_disp.columns = ["Keyword", "Location", "Country",
+                            "Businesses found", "New leads", "Searched at"]
+        _sh_disp["Searched at"] = pd.to_datetime(
+            _sh_disp["Searched at"]).dt.strftime("%d %b %Y  %H:%M")
+        st.dataframe(_sh_disp, use_container_width=True, hide_index=True, height=320)
+
+        # Summary by unique combo
+        _combos = (
+            _sh.groupby(["keyword", "location", "country"])
+            .agg(searches=("id", "count"), total_found=("results_count", "sum"),
+                 total_new=("new_leads", "sum"), last_run=("created_at", "max"))
+            .reset_index().sort_values("last_run", ascending=False)
+        )
+        st.markdown(
+            "<p style='font-size:13px;font-weight:600;color:#374151;margin:16px 0 6px;'>"
+            "Unique keyword × location combinations</p>", unsafe_allow_html=True)
+        st.dataframe(_combos.rename(columns={
+            "keyword": "Keyword", "location": "Location", "country": "Country",
+            "searches": "Times run", "total_found": "Total businesses",
+            "total_new": "Total new leads", "last_run": "Last run",
+        }), use_container_width=True, hide_index=True)
