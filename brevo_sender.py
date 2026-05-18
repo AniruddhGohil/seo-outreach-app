@@ -70,14 +70,23 @@ def send_email(
         "Content-Type": "application/json",
         "Accept":       "application/json",
     }
+    # List-Unsubscribe + One-Click header: required by Gmail/Yahoo bulk sender
+    # rules and checked by mail-tester.com — big deliverability boost.
+    _reply_addr = reply_to or sender_email
+    _unsub_header = f"<mailto:{_reply_addr}?subject=Unsubscribe>"
     payload = {
         "sender":      {"name": sender_name, "email": sender_email},
         "to":          [{"email": recipient_email, "name": recipient_name}],
-        "replyTo":     {"email": reply_to or sender_email},
+        "replyTo":     {"email": _reply_addr},
         "subject":     subject,
         "htmlContent": html_content,
         "textContent": text_content,
         "tags":        tags or ["seo-outreach"],
+        "headers": {
+            "List-Unsubscribe":      _unsub_header,
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+            "X-Entity-Ref-ID":       recipient_email,   # prevents Gmail threading
+        },
     }
     try:
         r = requests.post(

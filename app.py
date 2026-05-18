@@ -675,6 +675,26 @@ with st.sidebar:
             unsafe_allow_html=True,
         )
 
+    # ── Deliverability tip (custom domain reminder) ───────────────────────
+    _brevo_configured = bool(
+        st.secrets.get("brevo_key", "") or st.session_state.get("s_brevo", "")
+    )
+    _sender_is_gmail = (st.session_state.get("s_email", "") or
+                        st.secrets.get("smtp_email", "")).endswith("@gmail.com")
+    if _brevo_configured and _sender_is_gmail:
+        st.markdown(
+            "<div style='background:#1c1917;border:1px solid #44403c;"
+            "border-radius:8px;padding:8px 12px;margin:6px 0;'>"
+            "<div style='font-size:10px;font-weight:700;color:#fbbf24;"
+            "letter-spacing:0.4px;'>📬 DELIVERABILITY TIP</div>"
+            "<div style='font-size:10px;color:#d6d3d1;margin-top:3px;line-height:1.5;'>"
+            "Using gmail.com via Brevo prevents DKIM signing — "
+            "your score is capped ~6/10. Get a cheap custom domain "
+            "(e.g. aaronpearson.co.uk ≈ £10/yr) and verify it in "
+            "Brevo → Senders → Domains to reach 9–10/10.</div></div>",
+            unsafe_allow_html=True,
+        )
+
     # ── Background send indicator ─────────────────────────────────────────
     with bg_state.LOCK:
         _snap = dict(bg_state.STATE)
@@ -912,6 +932,7 @@ with tab_find:
     st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
 
     # ── Batch Search ──────────────────────────────────────────────────────────
+    # ── Batch search templates ────────────────────────────────────────────────
     _UK_TRADES = """\
 emergency plumber, Birmingham, United Kingdom
 boiler repair, Manchester, United Kingdom
@@ -922,67 +943,159 @@ gas engineer, Leicester, United Kingdom
 pest control, Glasgow, United Kingdom
 removals company, Bristol, United Kingdom
 locksmith, Edinburgh, United Kingdom
-carpet cleaning, Cardiff, United Kingdom"""
+carpet cleaning, Cardiff, United Kingdom
+handyman, Liverpool, United Kingdom
+drainage engineer, Newcastle, United Kingdom
+tree surgeon, Southampton, United Kingdom
+damp proofing, Portsmouth, United Kingdom
+window cleaner, Norwich, United Kingdom"""
 
     _UK_PROFESSIONALS = """\
 mortgage broker, Leeds, United Kingdom
 personal injury solicitor, Sheffield, United Kingdom
 private dentist, Bristol, United Kingdom
-physio, Edinburgh, United Kingdom
+physiotherapist, Edinburgh, United Kingdom
 accountant, Birmingham, United Kingdom
 estate agent, Manchester, United Kingdom
 driving instructor, Nottingham, United Kingdom
 cosmetic clinic, Glasgow, United Kingdom
 immigration solicitor, Leicester, United Kingdom
-financial advisor, Cardiff, United Kingdom"""
+financial advisor, Cardiff, United Kingdom
+family solicitor, Liverpool, United Kingdom
+private GP, Newcastle, United Kingdom
+chiropractor, Southampton, United Kingdom
+optician, Portsmouth, United Kingdom
+will writer, Norwich, United Kingdom"""
+
+    _UK_HEALTHCARE = """\
+private dentist, Birmingham, United Kingdom
+orthodontist, Manchester, United Kingdom
+chiropractor, Leeds, United Kingdom
+physiotherapist, Bristol, United Kingdom
+osteopath, Sheffield, United Kingdom
+private GP, Nottingham, United Kingdom
+cosmetic dentist, Glasgow, United Kingdom
+skin clinic, Edinburgh, United Kingdom
+hair transplant clinic, Leicester, United Kingdom
+weight loss clinic, Cardiff, United Kingdom
+audiologist, Liverpool, United Kingdom
+podiatrist, Newcastle, United Kingdom
+fertility clinic, Southampton, United Kingdom
+laser eye surgery, Portsmouth, United Kingdom
+sports physio, Norwich, United Kingdom"""
+
+    _UK_BEAUTY = """\
+hair salon, Birmingham, United Kingdom
+nail salon, Manchester, United Kingdom
+beauty salon, Leeds, United Kingdom
+laser hair removal, Bristol, United Kingdom
+microblading, Sheffield, United Kingdom
+lash extensions, Nottingham, United Kingdom
+spray tan, Glasgow, United Kingdom
+teeth whitening, Edinburgh, United Kingdom
+eyebrow threading, Leicester, United Kingdom
+semi permanent makeup, Cardiff, United Kingdom
+botox clinic, Liverpool, United Kingdom
+filler clinic, Newcastle, United Kingdom
+massage therapist, Southampton, United Kingdom
+tanning salon, Portsmouth, United Kingdom
+waxing salon, Norwich, United Kingdom"""
 
     _LONDON_TRADES = """\
 emergency plumber, CR0 Croydon, United Kingdom
 boiler repair, BR2 Bromley, United Kingdom
 electrician, HA3 Harrow, United Kingdom
-roofer, E17 London, United Kingdom
-builder, SW16 London, United Kingdom
-gas engineer, SE25 London, United Kingdom
+roofer, E17 Walthamstow, United Kingdom
+builder, SW16 Streatham, United Kingdom
+gas engineer, SE25 South Norwood, United Kingdom
 pest control, RM1 Romford, United Kingdom
-locksmith, N17 London, United Kingdom
+locksmith, N17 Tottenham, United Kingdom
 carpet cleaning, UB1 Southall, United Kingdom
-removals company, IG1 Ilford, United Kingdom"""
+removals company, IG1 Ilford, United Kingdom
+handyman, DA1 Dartford, United Kingdom
+drainage engineer, KT1 Kingston, United Kingdom
+tree surgeon, EN1 Enfield, United Kingdom
+damp proofing, TW3 Hounslow, United Kingdom
+window cleaner, SM1 Sutton, United Kingdom"""
 
     _LONDON_PROFESSIONALS = """\
 mortgage broker, HA3 Harrow, United Kingdom
 personal injury solicitor, CR0 Croydon, United Kingdom
 private dentist, BR2 Bromley, United Kingdom
-physio, SW16 London, United Kingdom
+physiotherapist, SW16 Streatham, United Kingdom
 accountant, IG1 Ilford, United Kingdom
-estate agent, E17 London, United Kingdom
+estate agent, E17 Walthamstow, United Kingdom
 immigration solicitor, UB1 Southall, United Kingdom
-cosmetic clinic, N22 London, United Kingdom
-driving instructor, SE25 London, United Kingdom
-financial advisor, RM1 Romford, United Kingdom"""
+cosmetic clinic, N22 Wood Green, United Kingdom
+driving instructor, SE25 South Norwood, United Kingdom
+financial advisor, RM1 Romford, United Kingdom
+family solicitor, DA1 Dartford, United Kingdom
+chiropractor, KT1 Kingston, United Kingdom
+private GP, EN1 Enfield, United Kingdom
+will writer, TW3 Hounslow, United Kingdom
+optician, SM1 Sutton, United Kingdom"""
+
+    _LONDON_BEAUTY = """\
+hair salon, CR0 Croydon, United Kingdom
+nail salon, E17 Walthamstow, United Kingdom
+beauty salon, HA3 Harrow, United Kingdom
+laser hair removal, UB1 Southall, United Kingdom
+lash extensions, IG1 Ilford, United Kingdom
+microblading, N22 Wood Green, United Kingdom
+teeth whitening, SW16 Streatham, United Kingdom
+botox clinic, BR2 Bromley, United Kingdom
+spray tan, SE25 South Norwood, United Kingdom
+semi permanent makeup, RM1 Romford, United Kingdom
+waxing salon, DA1 Dartford, United Kingdom
+massage therapist, KT1 Kingston, United Kingdom
+eyebrow threading, TW3 Hounslow, United Kingdom
+tanning salon, SM1 Sutton, United Kingdom
+skin clinic, EN1 Enfield, United Kingdom"""
 
     with st.expander("⚡ Batch Search — run multiple keywords at once", expanded=False):
         st.markdown(
             "<p style='font-size:13px;color:#6b7280;margin:0 0 12px;'>"
-            "Enter one search per line: <code>keyword, city, country</code>. "
+            "Enter one search per line: <code>keyword, city/postcode, country</code>. "
             "Country defaults to United Kingdom if omitted. "
-            "Use templates below to get started instantly.</p>",
+            "Pick a template or write your own combinations.</p>",
             unsafe_allow_html=True,
         )
 
-        # Template buttons
+        # Template buttons — 2 rows of 4
+        st.markdown("<p style='font-size:11px;font-weight:600;color:#9ca3af;"
+                    "text-transform:uppercase;letter-spacing:0.5px;margin:0 0 6px;'>"
+                    "UK-wide templates</p>", unsafe_allow_html=True)
         t1, t2, t3, t4 = st.columns(4)
         with t1:
-            if st.button("🔧 UK Trades", use_container_width=True):
+            if st.button("🔧 UK Trades", use_container_width=True, key="tpl_uktrades"):
                 st.session_state["batch_text"] = _UK_TRADES
         with t2:
-            if st.button("💼 UK Professionals", use_container_width=True):
+            if st.button("💼 UK Professionals", use_container_width=True, key="tpl_ukpro"):
                 st.session_state["batch_text"] = _UK_PROFESSIONALS
         with t3:
-            if st.button("🔧 London Trades", use_container_width=True):
-                st.session_state["batch_text"] = _LONDON_TRADES
+            if st.button("🏥 UK Healthcare", use_container_width=True, key="tpl_ukhealth"):
+                st.session_state["batch_text"] = _UK_HEALTHCARE
         with t4:
-            if st.button("💼 London Professionals", use_container_width=True):
+            if st.button("💅 UK Beauty", use_container_width=True, key="tpl_ukbeauty"):
+                st.session_state["batch_text"] = _UK_BEAUTY
+
+        st.markdown("<p style='font-size:11px;font-weight:600;color:#9ca3af;"
+                    "text-transform:uppercase;letter-spacing:0.5px;margin:8px 0 6px;'>"
+                    "London postcodes</p>", unsafe_allow_html=True)
+        l1, l2, l3, l4 = st.columns(4)
+        with l1:
+            if st.button("🔧 London Trades", use_container_width=True, key="tpl_lontrades"):
+                st.session_state["batch_text"] = _LONDON_TRADES
+        with l2:
+            if st.button("💼 London Professionals", use_container_width=True, key="tpl_lonpro"):
                 st.session_state["batch_text"] = _LONDON_PROFESSIONALS
+        with l3:
+            if st.button("🏥 London Healthcare", use_container_width=True, key="tpl_lonhealth"):
+                st.session_state["batch_text"] = _UK_HEALTHCARE.replace(", United Kingdom",
+                    ", London, United Kingdom")  # crude but quick reuse
+        with l4:
+            if st.button("💅 London Beauty", use_container_width=True, key="tpl_lonbeauty"):
+                st.session_state["batch_text"] = _LONDON_BEAUTY
 
         batch_text = st.text_area(
             "Search list",
@@ -1238,6 +1351,7 @@ financial advisor, RM1 Romford, United Kingdom"""
                     )
                     if email:
                         # ── Email-level dedup: has this address been sent before? ──
+
                         existing = get_lead_by_email(email)
                         if existing:
                             _est = existing.get("status", "unknown")
@@ -1255,9 +1369,13 @@ financial advisor, RM1 Romford, United Kingdom"""
 
                         biz["email"]        = email
                         biz["email_source"] = email_source
-                        icon = "🤔" if email_source == "guessed" else "📧"
-                        note = "  (pattern guess)" if email_source == "guessed" else "  ✅"
-                        log(f"    {icon}  {email}{note}")
+                        _src_icons = {
+                            "found":    ("📧", "✅ extracted from site"),
+                            "inferred": ("🔮", "name-based (inferred)"),
+                            "guessed":  ("🤔", "pattern guess"),
+                        }
+                        icon, note = _src_icons.get(email_source or "", ("📧", ""))
+                        log(f"    {icon}  {email}  {note}")
                     else:
                         biz["email"]        = None
                         biz["email_source"] = None
@@ -1310,8 +1428,13 @@ financial advisor, RM1 Romford, United Kingdom"""
                             unsafe_allow_html=True)
                 df_prev = pd.DataFrame(preview_rows)
                 if "email_source" in df_prev.columns:
+                    _src_labels = {
+                        "found":    "✅ Found",
+                        "inferred": "🔮 Inferred",
+                        "guessed":  "🤔 Guessed",
+                    }
                     df_prev["Email status"] = df_prev["email_source"].map(
-                        lambda s: "✅ Found" if s == "found" else ("🤔 Guessed" if s == "guessed" else "—")
+                        lambda s: _src_labels.get(s, "—")
                     )
                 show_cols = [c for c in
                     ["business_name","email","Email status","phone","website","address","city","source"]
@@ -1357,8 +1480,9 @@ with tab_db:
             f"</div>", unsafe_allow_html=True)
 
         if "email_source" in df_db.columns:
+            _db_src_labels = {"found": "Found", "inferred": "Inferred", "guessed": "Guessed"}
             df_db["Email source"] = df_db["email_source"].map(
-                lambda s: "Found" if s=="found" else ("Guessed" if s=="guessed" else "—"))
+                lambda s: _db_src_labels.get(s, "—"))
         show = [c for c in ["id","business_name","email","Email source","phone",
                              "city","country","keyword","source","status",
                              "email_sent_at","created_at"] if c in df_db.columns]
@@ -1493,16 +1617,35 @@ with tab_send:
         # ── PANEL B — Queue panel (new confirmed leads waiting to be sent) ─────
         df_ready = get_leads_with_email(status="new")
 
-        # Split confirmed vs guessed
+        # Split confirmed vs inferred vs guessed
         if "email_source" in df_ready.columns and not df_ready.empty:
             df_confirmed = df_ready[df_ready["email_source"] == "found"].copy()
-            df_guessed   = df_ready[df_ready["email_source"] != "found"].copy()
+            df_inferred  = df_ready[df_ready["email_source"] == "inferred"].copy()
+            df_guessed   = df_ready[df_ready["email_source"] == "guessed"].copy()
         else:
             df_confirmed = df_ready.copy()
+            df_inferred  = pd.DataFrame()
             df_guessed   = pd.DataFrame()
 
         confirmed_ct = len(df_confirmed)
+        inferred_ct  = len(df_inferred)
         guessed_ct   = len(df_guessed)
+
+        # Inferred-email info banner
+        if inferred_ct > 0:
+            st.markdown(
+                f"<div style='background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;"
+                f"padding:14px 18px;margin-bottom:12px;'>"
+                f"<p style='font-size:13px;font-weight:700;color:#0369a1;margin:0 0 4px;'>"
+                f"🔮  {inferred_ct} name-inferred email address"
+                f"{'es' if inferred_ct > 1 else ''} in queue</p>"
+                f"<p style='font-size:12px;color:#075985;margin:0;line-height:1.6;'>"
+                f"These emails were <b>derived from person names found on the website</b> "
+                f"(e.g. <code>john@businessdomain.co.uk</code>). Better than a blind guess — "
+                f"safe to send but expect a slightly higher bounce rate than 'found' emails.</p>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
 
         # Guessed-email warning
         if guessed_ct > 0:
@@ -1764,6 +1907,8 @@ with tab_analytics:
         found_pct = round(has_email.sum() / len(df_all) * 100, 1)
         confirmed = int((df_all["email_source"] == "found").sum()) \
             if "email_source" in df_all.columns else 0
+        inferred_n = int((df_all["email_source"] == "inferred").sum()) \
+            if "email_source" in df_all.columns else 0
         guessed = int((df_all["email_source"] == "guessed").sum()) \
             if "email_source" in df_all.columns else 0
 
@@ -1781,6 +1926,7 @@ with tab_analytics:
             f"{found_pct}%</span></div>"
             f"<div style='display:flex;gap:16px;font-size:13px;color:#6b7280;'>"
             f"<span>{_badge('Found', '#15803d', '#f0fdf4')} {confirmed} confirmed on site</span>"
+            f"<span>{_badge('Inferred', '#0369a1', '#f0f9ff')} {inferred_n} name-based</span>"
             f"<span>{_badge('Guessed', '#92400e', '#fffbeb')} {guessed} pattern fallback</span>"
             f"</div></div>",
             unsafe_allow_html=True,

@@ -8,29 +8,37 @@ Three battle-tested cold email variants:
 
 Subject lines rotate randomly per send to reduce spam-filter pattern matching.
 Follow-up templates fire on day 3 and day 7 after the first touch.
+
+Deliverability notes:
+  - "FREE" is a top-3 spam trigger — replaced with "complimentary" / dropped
+  - Dollar signs removed (UK audience → pound, but even £ should be buried in body)
+  - Each template has a matching plain-text part for proper multipart/alternative
+  - List-Unsubscribe header is injected by brevo_sender.py at send time
 """
 import random
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Subject lines  (rotate randomly)
+# Subject lines  (rotate randomly — no "FREE", no $ signs, no all-caps words)
 # ─────────────────────────────────────────────────────────────────────────────
 
 SUBJECT_LINES = [
-    "Quick question, {business_name}",
-    "{business_name} – found something worth sharing",
+    "Quick question about {business_name}",
+    "{business_name} – noticed something worth sharing",
     "Are customers finding {business_name} online?",
-    "{business_name} – your Google rankings",
+    "{business_name} – Google rankings",
     "Noticed something about {business_name}",
     "{business_name} – showing up in AI search?",
     "2 mins – could help {business_name} get more calls",
-    "{business_name} – free visibility check",
+    "{business_name} – visibility check",
+    "Something I spotted about {business_name}",
+    "{business_name} – a thought on local search",
 ]
 
 FOLLOWUP_SUBJECT_LINES = [
     "Re: {business_name} – just checking in",
     "Following up – {business_name}",
     "Still thinking about {business_name}'s visibility",
-    "One more thing, {business_name}",
+    "One more thought, {business_name}",
 ]
 
 FOLLOWUP2_SUBJECT_LINES = [
@@ -84,15 +92,23 @@ _BASE_CSS = """
   .card .cd { margin:0; font-size:13px; color:#64748b; }
   .price   { text-align:center; background:#fafafa; border:1px solid #e2e8f0;
              border-radius:10px; padding:20px; margin:22px 0; }
-  .price .amt { font-size:32px; font-weight:800; color:#4f46e5; }
+  .price .amt { font-size:28px; font-weight:800; color:#4f46e5; }
   .price .note { font-size:13px; color:#94a3b8; margin-top:4px; }
 """
 
+# Plain-text footer — simple, no HTML
+_FOOTER_TEXT = (
+    "\n\n---\n"
+    "You are receiving this because {business_name} is publicly listed online.\n"
+    "To stop receiving messages, simply reply with the word Unsubscribe.\n"
+)
+
+# HTML footer
 _FOOTER_HTML = """
   <div class="footer">
-    You're receiving this because <strong>{business_name}</strong> is publicly
-    listed online. To stop receiving messages from us, simply reply
-    <strong>"Unsubscribe"</strong> and we'll remove you straight away.
+    You are receiving this because <strong>{business_name}</strong> is publicly
+    listed online. To stop receiving messages from us, simply reply with the
+    word <strong>Unsubscribe</strong> and we will remove you straight away.
   </div>
 """
 
@@ -113,18 +129,17 @@ def build_short_html(business_name: str, sender_name: str, sender_email: str) ->
 <p>I was searching for services in your area and noticed
 <strong>{business_name}</strong> isn't showing up on page 1 of Google
 — or in AI tools like ChatGPT and Gemini, where more and more customers
-are now looking.</p>
+are now searching for local businesses.</p>
 
-<p>I help local businesses fix exactly that. Would you be open to a
-<strong>free 10-minute call</strong> to see what's holding your
-rankings back?</p>
+<p>I help local businesses improve exactly that. Would you be open to a
+quick 10-minute call to see what's holding your rankings back?</p>
 
-<p>No pitch — just a quick look and honest feedback.</p>
+<p>No obligation — just an honest look at where things stand.</p>
 
 <div class="sig">
   <strong>{sender_name}</strong><br>
   <a href="mailto:{sender_email}">{sender_email}</a><br>
-  <span style="font-size:12px;color:#94a3b8;">SEO · GEO · AEO Specialist</span>
+  <span style="font-size:12px;color:#94a3b8;">SEO &amp; Local Visibility Specialist</span>
 </div>
 
 </div>
@@ -137,20 +152,17 @@ Hi {business_name} team,
 
 I was searching for services in your area and noticed {business_name} isn't
 showing up on page 1 of Google — or in AI tools like ChatGPT and Gemini,
-where more customers now search.
+where more customers now search for local businesses.
 
-I help local businesses fix exactly that. Would you be open to a free
+I help local businesses improve exactly that. Would you be open to a quick
 10-minute call to see what's holding your rankings back?
 
-No pitch — just honest feedback.
+No obligation — just an honest look at where things stand.
 
 {sender_name}
 {sender_email}
-SEO · GEO · AEO Specialist
-
----
-Reply "Unsubscribe" to stop receiving messages — removed immediately.
-"""
+SEO & Local Visibility Specialist
+""" + _FOOTER_TEXT
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -168,31 +180,31 @@ def build_story_html(business_name: str, sender_name: str, sender_email: str) ->
 
 <p>Hi {business_name} team,</p>
 
-<p>Here's something I see constantly: a great local business, solid
-reputation, happy customers — but barely visible online. Competitors
-with half the quality are ranking above them simply because they've
+<p>Something I see all the time: a great local business with a solid
+reputation and happy customers — but barely visible online. Competitors
+with half the quality are ranking above them simply because they have
 invested in the right digital strategy.</p>
 
-<p>I checked and <strong>{business_name}</strong> has real potential
+<p>I had a look and <strong>{business_name}</strong> has real potential
 to rank significantly higher on Google, and to start appearing in AI
-search tools (ChatGPT, Gemini, Perplexity) where customers increasingly
-discover local services.</p>
+search tools like ChatGPT, Gemini and Perplexity — where customers
+increasingly discover local services.</p>
 
 <div class="highlight">
-  💡 Most businesses I work with see a measurable increase in enquiries
+  Most businesses I work with see a measurable increase in enquiries
   within 60–90 days. No lock-in contracts.
 </div>
 
-<p>I'd love to put together a <strong>complimentary visibility audit</strong>
-for {business_name} — a clear picture of where you stand and exactly
-what can be improved. Takes about 10 minutes of your time.</p>
+<p>I would love to put together a complimentary visibility audit for
+{business_name} — a clear picture of where you stand and exactly what
+can be improved. Takes about 10 minutes of your time.</p>
 
 <p>Interested?</p>
 
 <div class="sig">
   <strong>{sender_name}</strong><br>
   <a href="mailto:{sender_email}">{sender_email}</a><br>
-  <span style="font-size:12px;color:#94a3b8;">SEO · GEO · AEO Specialist</span>
+  <span style="font-size:12px;color:#94a3b8;">SEO &amp; Local Visibility Specialist</span>
 </div>
 
 </div>
@@ -203,9 +215,10 @@ what can be improved. Takes about 10 minutes of your time.</p>
 STORY_TEXT = """\
 Hi {business_name} team,
 
-Here's something I see constantly: a great local business, solid reputation,
-happy customers — but barely visible online. Competitors with half the quality
-rank above them simply because they've invested in the right digital strategy.
+Something I see all the time: a great local business with a solid reputation
+and happy customers — but barely visible online. Competitors with half the
+quality rank above them simply because they have invested in the right digital
+strategy.
 
 {business_name} has real potential to rank higher on Google, and to start
 appearing in AI tools like ChatGPT and Gemini where customers increasingly
@@ -214,18 +227,15 @@ discover local services.
 Most businesses I work with see measurable growth in enquiries within 60-90
 days. No lock-in contracts.
 
-I'd love to put together a complimentary visibility audit for {business_name}
-— a clear picture of where you stand and what can be improved.
+I would love to put together a complimentary visibility audit for
+{business_name} — a clear picture of where you stand and what can be improved.
 
 Interested?
 
 {sender_name}
 {sender_email}
-SEO · GEO · AEO Specialist
-
----
-Reply "Unsubscribe" to stop receiving messages — removed immediately.
-"""
+SEO & Local Visibility Specialist
+""" + _FOOTER_TEXT
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -259,7 +269,7 @@ with how fast search is changing in 2025.</p>
   <p class="ct">🤖 GEO – Generative Engine Optimisation</p>
   <p class="cd">Get recommended inside ChatGPT, Google Gemini and
   Perplexity — where millions now discover local businesses. Most of
-  your competitors aren't there yet.</p>
+  your competitors are not there yet.</p>
 </div>
 
 <div class="card">
@@ -269,12 +279,12 @@ with how fast search is changing in 2025.</p>
 </div>
 
 <div class="price">
-  <div class="amt">From $600<span style="font-size:16px;font-weight:400;
+  <div class="amt">From £500<span style="font-size:16px;font-weight:400;
        color:#94a3b8">&nbsp;/ month</span></div>
   <p class="note">Tailored packages · No lock-in contracts · Results in 60–90 days</p>
 </div>
 
-<p>I'd like to offer <strong>{business_name}</strong> a complimentary
+<p>I would like to offer <strong>{business_name}</strong> a complimentary
 online visibility audit — an honest look at where you stand today and
 exactly what we can improve. No commitment required.</p>
 
@@ -283,7 +293,7 @@ exactly what we can improve. No commitment required.</p>
 <div class="sig">
   <strong>{sender_name}</strong><br>
   <a href="mailto:{sender_email}">{sender_email}</a><br>
-  <span style="font-size:12px;color:#94a3b8;">SEO · GEO · AEO Specialist</span>
+  <span style="font-size:12px;color:#94a3b8;">SEO &amp; Local Visibility Specialist</span>
 </div>
 
 </div>
@@ -303,25 +313,22 @@ We help local businesses grow through three services:
 SEO – Rank on page 1 of Google for the searches your customers make.
 
 GEO (Generative Engine Optimisation) – Get recommended inside ChatGPT,
-Google Gemini and Perplexity. Most competitors aren't there yet.
+Google Gemini and Perplexity. Most competitors are not there yet.
 
 AEO (Answer Engine Optimisation) – Appear in Featured Snippets and
 voice search so customers choose you first.
 
-Packages from $600/month — tailored to your goals, no lock-in contracts.
+Packages from £500 per month — tailored to your goals, no lock-in contracts.
 
-I'd like to offer {business_name} a complimentary visibility audit — an
-honest look at where you stand and what we can improve. No commitment.
+I would like to offer {business_name} a complimentary visibility audit — an
+honest look at where you stand and what we can improve. No commitment needed.
 
 Would you be open to a quick 15-minute call this week?
 
 {sender_name}
 {sender_email}
-SEO · GEO · AEO Specialist
-
----
-Reply "Unsubscribe" to stop receiving messages — removed immediately.
-"""
+SEO & Local Visibility Specialist
+""" + _FOOTER_TEXT
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -338,10 +345,10 @@ def build_followup_html(business_name: str, sender_name: str, sender_email: str)
 <p>Hi {business_name} team,</p>
 
 <p>Just following up on my note from a few days ago in case it got
-buried.</p>
+buried in your inbox.</p>
 
-<p>I genuinely think there's a quick win available for
-<strong>{business_name}</strong> in local search — and I'd hate for a
+<p>I genuinely think there is a quick win available for
+<strong>{business_name}</strong> in local search — and I would hate for a
 competitor to get there first.</p>
 
 <p>Happy to keep it to 10 minutes. Would any time this week work for you?</p>
@@ -361,17 +368,14 @@ Hi {business_name} team,
 
 Just following up on my note from a few days ago in case it got buried.
 
-I genuinely think there's a quick win available for {business_name} in local
-search — and I'd hate for a competitor to get there first.
+I genuinely think there is a quick win available for {business_name} in local
+search — and I would hate for a competitor to get there first.
 
 Happy to keep it to 10 minutes. Would any time this week work?
 
 {sender_name}
 {sender_email}
-
----
-Reply "Unsubscribe" to be removed immediately.
-"""
+""" + _FOOTER_TEXT
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -387,11 +391,11 @@ def build_followup2_html(business_name: str, sender_name: str, sender_email: str
 
 <p>Hi {business_name} team,</p>
 
-<p>I'll keep this brief — I don't want to keep filling your inbox.</p>
+<p>I will keep this brief — I do not want to keep filling your inbox.</p>
 
-<p>If the timing isn't right, no worries at all. But if you'd ever
-like to explore how <strong>{business_name}</strong> could show up
-better online, my offer for a free audit stands — just reply
+<p>If the timing is not right, no worries at all. But if you ever
+want to explore how <strong>{business_name}</strong> could show up
+better online, my offer for a complimentary audit stands — just reply
 to this email anytime.</p>
 
 <p>Wishing you a great week.</p>
@@ -409,20 +413,17 @@ to this email anytime.</p>
 FOLLOWUP2_TEXT = """\
 Hi {business_name} team,
 
-I'll keep this brief — I don't want to keep filling your inbox.
+I will keep this brief — I do not want to keep filling your inbox.
 
-If the timing isn't right, no worries. But if you'd ever like to explore
-how {business_name} could show up better online, my offer for a free audit
-stands — just reply anytime.
+If the timing is not right, no worries. But if you ever want to explore
+how {business_name} could show up better online, my offer for a complimentary
+audit stands — just reply anytime.
 
 Wishing you a great week.
 
 {sender_name}
 {sender_email}
-
----
-Reply "Unsubscribe" to be removed immediately.
-"""
+""" + _FOOTER_TEXT
 
 
 # ─────────────────────────────────────────────────────────────────────────────

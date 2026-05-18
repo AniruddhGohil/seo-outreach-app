@@ -20,6 +20,8 @@ Extraction techniques (in priority order):
  16.  robots.txt → sitemap discovery
  17.  Sitemap.xml discovery of extra contact/about/privacy pages
  18.  Email ranking: prefer owner-name emails over generic info@
+ 19.  MX record validation via Google DNS-over-HTTPS (filters dead domains)
+ 20.  Name-based email inference from team/about page (last resort, marked 'inferred')
 """
 import json
 import random
@@ -506,6 +508,118 @@ def _discover_contact_pages_from_sitemap(base: str) -> List[str]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# MX record validation  (filters dead / parked domains)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _domain_has_mx(domain: str) -> bool:
+    """
+    Return True if the domain has MX records (i.e. it can receive email).
+    Uses Google DNS-over-HTTPS — no extra library required.
+    Returns True on any network error (fail open, don't block real emails).
+    """
+    try:
+        r = requests.get(
+            "https://dns.google/resolve",
+            params={"name": domain, "type": "MX"},
+            timeout=5,
+            headers={"Accept": "application/json"},
+        )
+        if r.status_code == 200:
+            data = r.json()
+            # Status 0 = NOERROR with answers → has MX records
+            # Status 3 = NXDOMAIN → domain doesn't exist
+            if data.get("Status") == 3:
+                return False
+            return len(data.get("Answer", [])) > 0
+    except Exception:
+        pass
+    return True   # fail open
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Name-based email inference  (last resort, marked 'inferred')
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Regex: matches "John Smith", "Dr Sarah Jones", "Mike O'Brien" etc.
+_PERSON_NAME_RE = re.compile(
+    r"\b(?:Dr|Mr|Mrs|Ms|Miss|Prof|Sir)\.?\s+([A-Z][a-z]{1,15})\s+([A-Z][a-z']{1,20})\b"
+    r"|"
+    r"\b([A-Z][a-z]{1,15})\s+([A-Z][a-z']{1,20})\b"
+)
+
+# Common UK business-owner first names to avoid false positives like "New York"
+_NON_NAME_WORDS = {
+    "About", "Contact", "Privacy", "Policy", "Terms", "Conditions",
+    "Services", "Google", "Facebook", "Twitter", "Instagram", "LinkedIn",
+    "Home", "Page", "Email", "Phone", "Address", "Office", "United",
+    "Kingdom", "England", "Scotland", "Wales", "London", "North", "South",
+    "East", "West", "Monday", "Tuesday", "Wednesday", "Thursday",
+    "Friday", "Saturday", "Sunday", "January", "February", "March",
+    "April", "June", "July", "August", "September", "October",
+    "November", "December",
+}
+
+
+def _extract_person_names(soup: BeautifulSoup) -> List[Tuple[str, str]]:
+    """
+    Extract (first, last) name tuples from headings and prominent elements.
+    Used to infer owner/staff email addresses when direct extraction fails.
+    """
+    names: List[Tuple[str, str]] = []
+    seen: set = set()
+
+    # High-priority: headings, strong, team-section elements
+    for tag in soup.find_all(
+        ["h1", "h2", "h3", "h4", "strong", "b", "p"],
+        class_=re.compile(r"(team|staff|owner|author|founder|director|name|person)", re.I),
+    ):
+        _scan_text_for_names(tag.get_text(" "), names, seen)
+
+    # Medium-priority: all headings if we haven't found any yet
+    if not names:
+        for tag in soup.find_all(["h1", "h2", "h3", "h4"]):
+            _scan_text_for_names(tag.get_text(" "), names, seen)
+
+    return names[:4]   # cap at 4 candidates
+
+
+def _scan_text_for_names(text: str, out: list, seen: set) -> None:
+    for m in _PERSON_NAME_RE.finditer(text):
+        if m.group(1) and m.group(2):          # "Dr John Smith" form
+            first, last = m.group(1), m.group(2)
+        else:                                   # "John Smith" plain form
+            first, last = m.group(3), m.group(4)
+
+        if (first in _NON_NAME_WORDS or last in _NON_NAME_WORDS):
+            continue
+        key = (first.lower(), last.lower())
+        if key not in seen:
+            seen.add(key)
+            out.append(key)
+
+
+def _infer_email_from_names(
+    names: List[Tuple[str, str]], domain: str
+) -> Optional[str]:
+    """
+    Try common first-name / firstname.lastname email patterns for each name.
+    Returns the first candidate that passes _clean_email and MX check.
+    """
+    for first, last in names:
+        # Ranked patterns: most common UK business email formats first
+        candidates = [
+            f"{first}@{domain}",
+            f"{first}.{last}@{domain}",
+            f"{first[0]}.{last}@{domain}",
+            f"{first}{last[0]}@{domain}",
+        ]
+        for c in candidates:
+            if _clean_email(c):
+                return c   # return first plausible; MX is checked at domain level
+    return None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Public API
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -515,16 +629,18 @@ def find_email_on_website(
 ) -> Tuple[Optional[str], Optional[str]]:
     """
     Visit a business website and return (email, source):
-      source = 'found'   → extracted from real page content
-      source = 'guessed' → info@ pattern fallback (only if use_guess_fallback=True)
+      source = 'found'    → extracted directly from real page content
+      source = 'inferred' → derived from person name found on the page
+      source = 'guessed'  → info@ pattern fallback (only if use_guess_fallback=True)
 
     Strategy:
-      1. Try up to 4 URL variants (https/http × www/bare)
-         so sites with no SSL or mismatched www are still reachable
-      2. Fetch homepage → extract emails + discover contact-like links
-      3. Try standard contact paths + homepage-discovered links
-      4. Parse robots.txt → sitemap → find contact/about/privacy pages
-      5. If still nothing and use_guess_fallback=True → info@domain only
+      1. MX record check — skip domain entirely if it has no mail servers
+      2. Try up to 4 URL variants (https/http × www/bare)
+      3. Fetch homepage → extract emails + discover contact-like links
+      4. Try standard contact paths + homepage-discovered links
+      5. Parse robots.txt → sitemap → find contact/about/privacy pages
+      6. Name-based inference: extract person names → try firstname@domain etc.
+      7. info@ fallback (only if use_guess_fallback=True)
     """
     if not website_url:
         return None, None
@@ -538,9 +654,15 @@ def find_email_on_website(
     except Exception:
         return None, None
 
-    domain_is_live  = False
-    extra_from_home: List[str] = []
-    working_base    = ""   # first base URL that actually responds
+    # ── Phase 0: MX check — skip dead/parked domains ──────────────────────────
+    # Saves time and prevents saving emails for domains that can't receive mail.
+    if not _domain_has_mx(domain):
+        return None, None
+
+    domain_is_live    = False
+    extra_from_home:  List[str] = []
+    working_base      = ""     # first base URL that actually responds
+    names_from_pages: List[Tuple[str, str]] = []   # person names collected
 
     # ── Phase 1: Homepage — try URL variants ──────────────────────────────────
     homepage_html: Optional[str] = None
@@ -560,11 +682,12 @@ def find_email_on_website(
         emails = _emails_from_soup(soup, homepage_html)
         if emails:
             return emails[0], "found"
-        extra_from_home = _discover_contact_links_from_homepage(soup, working_base)
+        extra_from_home   = _discover_contact_links_from_homepage(soup, working_base)
+        # Collect names from homepage for later inference fallback
+        names_from_pages  = _extract_person_names(soup)
 
     # ── Phase 2: Standard contact paths + homepage-discovered links ───────────
     if not working_base:
-        # Domain never responded — skip further fetching
         return None, None
 
     standard_pages = [urljoin(working_base, p) for p in _CONTACT_PATHS]
@@ -572,7 +695,6 @@ def find_email_on_website(
                                          if p not in extra_from_home]
 
     seen: set = {website_url}
-    # Add all variant homepages to seen so we don't refetch them
     for v in _url_variants(website_url):
         seen.add(v)
 
@@ -591,6 +713,10 @@ def find_email_on_website(
         if emails:
             return emails[0], "found"
 
+        # Accumulate names from contact/team/about pages (highest signal)
+        if not names_from_pages:
+            names_from_pages = _extract_person_names(soup)
+
         time.sleep(random.uniform(0.15, 0.4))
 
     # ── Phase 3: Sitemap discovery ────────────────────────────────────────────
@@ -608,11 +734,21 @@ def find_email_on_website(
             emails = _emails_from_soup(soup, html)
             if emails:
                 return emails[0], "found"
+            if not names_from_pages:
+                names_from_pages = _extract_person_names(soup)
             time.sleep(random.uniform(0.15, 0.35))
     except Exception:
         pass
 
-    # ── Phase 4: Guess fallback (disabled by default) ─────────────────────────
+    # ── Phase 4: Name-based inference ────────────────────────────────────────
+    # If we found person names on the site, try firstname@domain etc.
+    # These are much more likely to be read than info@ guesses.
+    if domain_is_live and names_from_pages:
+        inferred = _infer_email_from_names(names_from_pages, domain)
+        if inferred:
+            return inferred, "inferred"
+
+    # ── Phase 5: info@ guess fallback (disabled by default) ──────────────────
     if use_guess_fallback and domain_is_live:
         candidate = _clean_email(f"info@{domain}")
         if candidate:
