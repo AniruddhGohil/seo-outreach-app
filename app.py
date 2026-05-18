@@ -12,6 +12,7 @@ from datetime import datetime
 
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 from streamlit_oauth import OAuth2Component
 
@@ -1589,121 +1590,108 @@ with tab_analytics:
             unsafe_allow_html=True,
         )
 
-        ch1, ch2 = st.columns(2)
-        with ch1:
-            st.markdown(
-                "<div style='background:white;border-radius:12px;padding:16px 20px;"
-                "border:1px solid #e9ecef;margin-bottom:12px;'>"
-                "<p style='font-size:13px;font-weight:600;color:#374151;margin:0 0 10px;'>"
-                "Leads by Country</p></div>",
-                unsafe_allow_html=True,
-            )
-            cc = df_all.groupby("country").size().reset_index(name="Leads")
-            cc = cc.sort_values("Leads", ascending=True).tail(12)
-            fig_cc = px.bar(
-                cc, x="Leads", y="country", orientation="h",
-                color_discrete_sequence=["#4f46e5"],
-                labels={"country": "", "Leads": "Leads"},
-                height=260,
-            )
-            fig_cc.update_layout(
-                margin=dict(l=0, r=12, t=4, b=4),
-                paper_bgcolor="white", plot_bgcolor="white",
+        def _chart_layout(fig, height=260):
+            fig.update_layout(
+                height=height,
+                margin=dict(l=8, r=8, t=8, b=8),
+                paper_bgcolor="white",
+                plot_bgcolor="white",
                 font=dict(family="Inter, sans-serif", size=12, color="#374151"),
-                xaxis=dict(showgrid=True, gridcolor="#f3f4f6", zeroline=False),
-                yaxis=dict(showgrid=False),
-            )
-            fig_cc.update_traces(marker_line_width=0)
-            st.plotly_chart(fig_cc, use_container_width=True)
-
-        with ch2:
-            st.markdown(
-                "<div style='background:white;border-radius:12px;padding:16px 20px;"
-                "border:1px solid #e9ecef;margin-bottom:12px;'>"
-                "<p style='font-size:13px;font-weight:600;color:#374151;margin:0 0 10px;'>"
-                "Leads by Status</p></div>",
-                unsafe_allow_html=True,
-            )
-            sc_df = df_all.groupby("status").size().reset_index(name="Leads")
-            _status_colors = {
-                "new": "#6366f1", "queued": "#f59e0b", "sent": "#10b981",
-                "bounced": "#ef4444", "replied": "#0ea5e9", "skipped": "#9ca3af",
-            }
-            sc_df["color"] = sc_df["status"].map(
-                lambda s: _status_colors.get(s, "#6366f1")
-            )
-            fig_sc = px.bar(
-                sc_df, x="Leads", y="status", orientation="h",
-                color="status",
-                color_discrete_map=_status_colors,
-                labels={"status": "", "Leads": "Leads"},
-                height=260,
-            )
-            fig_sc.update_layout(
-                margin=dict(l=0, r=12, t=4, b=4),
-                paper_bgcolor="white", plot_bgcolor="white",
-                font=dict(family="Inter, sans-serif", size=12, color="#374151"),
-                xaxis=dict(showgrid=True, gridcolor="#f3f4f6", zeroline=False),
-                yaxis=dict(showgrid=False),
+                xaxis=dict(showgrid=True, gridcolor="#f0f0f0", zeroline=False,
+                           tickfont=dict(size=11)),
+                yaxis=dict(showgrid=False, tickfont=dict(size=11)),
                 showlegend=False,
             )
-            fig_sc.update_traces(marker_line_width=0)
+            return fig
+
+        def _card(title):
+            st.markdown(
+                f"<div style='background:white;border-radius:12px;padding:16px 20px 4px;"
+                f"border:1px solid #e9ecef;margin-bottom:4px;'>"
+                f"<p style='font-size:13px;font-weight:600;color:#374151;margin:0;'>"
+                f"{title}</p></div>",
+                unsafe_allow_html=True,
+            )
+
+        ch1, ch2 = st.columns(2)
+
+        # ── Leads by Country ──────────────────────────────────────────────────
+        with ch1:
+            _card("Leads by Country")
+            cc = df_all.groupby("country").size().reset_index(name="count")
+            cc = cc.sort_values("count", ascending=True).tail(12)
+            fig_cc = go.Figure(go.Bar(
+                x=cc["count"],
+                y=cc["country"],
+                orientation="h",
+                marker_color="#4f46e5",
+                marker_line_width=0,
+                hovertemplate="%{y}: %{x} leads<extra></extra>",
+            ))
+            _chart_layout(fig_cc, height=max(260, len(cc) * 32))
+            st.plotly_chart(fig_cc, use_container_width=True)
+
+        # ── Leads by Status ───────────────────────────────────────────────────
+        with ch2:
+            _card("Leads by Status")
+            sc_df = df_all.groupby("status").size().reset_index(name="count")
+            _sc = {
+                "new": "#6366f1", "queued": "#f59e0b", "sent": "#10b981",
+                "failed": "#ef4444", "no_email": "#94a3b8",
+                "bounced": "#f87171", "replied": "#0ea5e9", "skipped": "#9ca3af",
+            }
+            sc_df = sc_df.sort_values("count", ascending=True)
+            fig_sc = go.Figure(go.Bar(
+                x=sc_df["count"],
+                y=sc_df["status"],
+                orientation="h",
+                marker_color=[_sc.get(s, "#6366f1") for s in sc_df["status"]],
+                marker_line_width=0,
+                hovertemplate="%{y}: %{x} leads<extra></extra>",
+            ))
+            _chart_layout(fig_sc, height=max(260, len(sc_df) * 40))
             st.plotly_chart(fig_sc, use_container_width=True)
 
-        # ── Daily lead volume ─────────────────────────────────────────────────
-        st.markdown(
-            "<div style='background:white;border-radius:12px;padding:16px 20px;"
-            "border:1px solid #e9ecef;margin-bottom:12px;'>"
-            "<p style='font-size:13px;font-weight:600;color:#374151;margin:0 0 10px;'>"
-            "Daily Lead Volume</p></div>",
-            unsafe_allow_html=True,
-        )
+        # ── Daily Lead Volume ─────────────────────────────────────────────────
+        _card("Daily Lead Volume")
         df_all["date"] = pd.to_datetime(df_all["created_at"]).dt.date
-        daily = df_all.groupby("date").size().reset_index(name="Leads")
+        daily = df_all.groupby("date").size().reset_index(name="count")
         daily["date"] = pd.to_datetime(daily["date"])
-        fig_daily = px.area(
-            daily, x="date", y="Leads",
-            color_discrete_sequence=["#4f46e5"],
-            labels={"date": "", "Leads": "Leads per day"},
-            height=220,
-        )
-        fig_daily.update_layout(
-            margin=dict(l=0, r=12, t=4, b=4),
-            paper_bgcolor="white", plot_bgcolor="white",
-            font=dict(family="Inter, sans-serif", size=12, color="#374151"),
-            xaxis=dict(showgrid=False, zeroline=False),
-            yaxis=dict(showgrid=True, gridcolor="#f3f4f6", zeroline=False),
-        )
-        fig_daily.update_traces(
-            line_color="#4f46e5", fillcolor="rgba(79,70,229,0.12)",
-            line_width=2,
-        )
+
+        if len(daily) == 1:
+            # Single day — show a bar so something is visible
+            fig_daily = go.Figure(go.Bar(
+                x=daily["date"], y=daily["count"],
+                marker_color="#4f46e5", marker_line_width=0,
+                hovertemplate="%{x|%b %d}: %{y} leads<extra></extra>",
+            ))
+        else:
+            fig_daily = go.Figure()
+            fig_daily.add_trace(go.Scatter(
+                x=daily["date"], y=daily["count"],
+                mode="lines+markers",
+                line=dict(color="#4f46e5", width=2),
+                fill="tozeroy",
+                fillcolor="rgba(79,70,229,0.10)",
+                marker=dict(size=5, color="#4f46e5"),
+                hovertemplate="%{x|%b %d}: %{y} leads<extra></extra>",
+            ))
+        _chart_layout(fig_daily, height=220)
         st.plotly_chart(fig_daily, use_container_width=True)
 
-        # ── Leads by keyword ──────────────────────────────────────────────────
-        st.markdown(
-            "<div style='background:white;border-radius:12px;padding:16px 20px;"
-            "border:1px solid #e9ecef;margin-bottom:12px;'>"
-            "<p style='font-size:13px;font-weight:600;color:#374151;margin:0 0 10px;'>"
-            "Top Keywords</p></div>",
-            unsafe_allow_html=True,
-        )
-        kc = df_all.groupby("keyword").size().reset_index(name="Leads")
-        kc = kc.sort_values("Leads", ascending=True).tail(15)
-        fig_kc = px.bar(
-            kc, x="Leads", y="keyword", orientation="h",
-            color_discrete_sequence=["#10b981"],
-            labels={"keyword": "", "Leads": "Leads"},
-            height=max(220, len(kc) * 28),
-        )
-        fig_kc.update_layout(
-            margin=dict(l=0, r=12, t=4, b=4),
-            paper_bgcolor="white", plot_bgcolor="white",
-            font=dict(family="Inter, sans-serif", size=12, color="#374151"),
-            xaxis=dict(showgrid=True, gridcolor="#f3f4f6", zeroline=False),
-            yaxis=dict(showgrid=False),
-        )
-        fig_kc.update_traces(marker_line_width=0)
+        # ── Top Keywords ──────────────────────────────────────────────────────
+        _card("Top Keywords")
+        kc = df_all.groupby("keyword").size().reset_index(name="count")
+        kc = kc.sort_values("count", ascending=True).tail(15)
+        fig_kc = go.Figure(go.Bar(
+            x=kc["count"],
+            y=kc["keyword"],
+            orientation="h",
+            marker_color="#10b981",
+            marker_line_width=0,
+            hovertemplate="%{y}: %{x} leads<extra></extra>",
+        ))
+        _chart_layout(fig_kc, height=max(220, len(kc) * 32))
         st.plotly_chart(fig_kc, use_container_width=True)
 
     # ── Brevo email performance ───────────────────────────────────────────────
