@@ -17,18 +17,36 @@ import requests as _requests
 from datetime import datetime
 from typing import Optional, List
 
-# ── Turso credentials ─────────────────────────────────────────────────────────
-try:
-    import streamlit as st
-    _TURSO_URL   = st.secrets.get("turso_url",   "")
-    _TURSO_TOKEN = st.secrets.get("turso_token",  "")
-except Exception:
-    _TURSO_URL   = os.environ.get("TURSO_URL",   "")
-    _TURSO_TOKEN = os.environ.get("TURSO_TOKEN",  "")
+# ── Turso credentials (lazy-loaded on first use) ──────────────────────────────
+# We intentionally do NOT read st.secrets at module import time.
+# Streamlit may not have finished initialising secrets when database.py is first
+# imported (especially on Community Cloud), so module-level reads can silently
+# return empty strings, making _USE_TURSO = False even though the secrets exist.
+# Instead, every public entry-point calls _ensure_creds() before using these globals.
 
-_USE_TURSO = bool(_TURSO_URL and _TURSO_TOKEN)
-# libsql:// → https:// for the HTTP pipeline API
-_TURSO_HTTP = _TURSO_URL.replace("libsql://", "https://") if _TURSO_URL else ""
+_creds_loaded = False
+_TURSO_URL    = ""
+_TURSO_TOKEN  = ""
+_USE_TURSO    = False
+_TURSO_HTTP   = ""
+
+
+def _ensure_creds() -> None:
+    """Populate Turso globals from st.secrets / env vars (runs exactly once)."""
+    global _creds_loaded, _TURSO_URL, _TURSO_TOKEN, _USE_TURSO, _TURSO_HTTP
+    if _creds_loaded:
+        return
+    _creds_loaded = True          # set first so concurrent calls don't double-load
+    try:
+        import streamlit as _st   # local import — avoids circular issues at module level
+        _TURSO_URL   = (_st.secrets.get("turso_url",   "") or "").strip()
+        _TURSO_TOKEN = (_st.secrets.get("turso_token",  "") or "").strip()
+    except Exception:
+        _TURSO_URL   = (os.environ.get("TURSO_URL",   "") or "").strip()
+        _TURSO_TOKEN = (os.environ.get("TURSO_TOKEN",  "") or "").strip()
+    _USE_TURSO  = bool(_TURSO_URL and _TURSO_TOKEN)
+    # libsql:// → https:// for the HTTP pipeline API
+    _TURSO_HTTP = _TURSO_URL.replace("libsql://", "https://") if _TURSO_URL else ""
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -66,6 +84,7 @@ def _turso_execute(sql: str, params=()) -> dict:
     Returns the 'result' dict:  {cols, rows, last_insert_rowid, affected_row_count}
     Raises Exception on SQL error or HTTP failure.
     """
+    _ensure_creds()
     args = [_to_turso_arg(p) for p in params]
     payload = {
         "requests": [
@@ -184,6 +203,7 @@ class _TursoConn:
 
 def get_conn():
     """Return a Turso HTTP connection, or a local SQLite connection as fallback."""
+    _ensure_creds()
     if _USE_TURSO:
         return _TursoConn()
     return sqlite3.connect("leads.db", check_same_thread=False)
@@ -194,19 +214,28 @@ def test_connection() -> tuple:
     Test the active database connection.
     Returns (ok: bool, message: str, backend: str).
     """
+    _ensure_creds()
     if _USE_TURSO:
         try:
             _turso_execute("SELECT 1")
-            return True, f"Turso connected · {_TURSO_HTTP}", "turso"
+            host = _TURSO_HTTP.replace("https://", "")
+            return True, f"Connected to Turso · {host}", "turso"
         except Exception as e:
-            return False, f"Turso ERROR: {e}", "turso_failed"
+            return False, f"Turso HTTP error: {e}", "turso_failed"
     else:
-        if not _TURSO_URL and not _TURSO_TOKEN:
-            return False, "Turso secrets not found — using local SQLite (data lost on reboot)", "sqlite_no_secrets"
-        if not _TURSO_URL:
-            return False, "turso_url secret missing", "sqlite_missing_url"
-        if not _TURSO_TOKEN:
-            return False, "turso_token secret missing", "sqlite_missing_token"
+        has_url   = bool(_TURSO_URL)
+        has_token = bool(_TURSO_TOKEN)
+        if not has_url and not has_token:
+            return (
+                False,
+                "Secrets 'turso_url' and 'turso_token' not found — "
+                "check Streamlit Cloud → Settings → Secrets",
+                "sqlite_no_secrets",
+            )
+        if not has_url:
+            return False, "Secret 'turso_url' is empty or missing", "sqlite_missing_url"
+        if not has_token:
+            return False, "Secret 'turso_token' is empty or missing", "sqlite_missing_token"
         return False, "Turso not configured — using local SQLite", "sqlite"
 
 
