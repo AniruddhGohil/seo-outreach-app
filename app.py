@@ -1813,6 +1813,197 @@ with tab_analytics:
             unsafe_allow_html=True,
         )
 
+    # ── Deliverability Health ─────────────────────────────────────────────────
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+    _section("Deliverability Health",
+             "Check that your emails are actually reaching inboxes, not spam folders.")
+
+    _brevo_deliv = st.session_state.get("s_brevo","") or st.secrets.get("brevo_key","")
+    _from_email  = st.session_state.get("s_email","") or st.secrets.get("smtp_email","")
+    _from_domain = _from_email.split("@")[1] if "@" in _from_email else ""
+
+    dv1, dv2, dv3 = st.columns(3)
+
+    # ── Card 1: SPF check ─────────────────────────────────────────────────────
+    with dv1:
+        spf_ok = False
+        spf_record = ""
+        if _from_domain:
+            try:
+                _spf_r = requests.get(
+                    f"https://dns.google/resolve?name={_from_domain}&type=TXT",
+                    timeout=8,
+                )
+                if _spf_r.status_code == 200:
+                    for ans in _spf_r.json().get("Answer", []):
+                        d = ans.get("data", "")
+                        if "v=spf1" in d:
+                            spf_ok = True
+                            spf_record = d[:60]
+            except Exception:
+                pass
+        _spf_color = "#10b981" if spf_ok else "#ef4444"
+        _spf_icon  = "✅" if spf_ok else "❌"
+        _spf_label = "SPF record found" if spf_ok else "No SPF record"
+        st.markdown(
+            f"<div style='background:white;border-radius:12px;padding:18px 20px;"
+            f"border:1px solid #e9ecef;height:100%;'>"
+            f"<p style='font-size:11px;font-weight:700;color:#9ca3af;"
+            f"text-transform:uppercase;letter-spacing:0.7px;margin:0 0 8px;'>SPF Record</p>"
+            f"<p style='font-size:22px;margin:0 0 4px;'>{_spf_icon}</p>"
+            f"<p style='font-size:13px;font-weight:600;color:{_spf_color};margin:0 0 4px;'>"
+            f"{_spf_label}</p>"
+            f"<p style='font-size:11px;color:#9ca3af;margin:0;'>"
+            f"{'Authenticated ✓' if spf_ok else 'May land in spam'}</p>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
+    # ── Card 2: DMARC check ───────────────────────────────────────────────────
+    with dv2:
+        dmarc_ok = False
+        if _from_domain:
+            try:
+                _dm_r = requests.get(
+                    f"https://dns.google/resolve?name=_dmarc.{_from_domain}&type=TXT",
+                    timeout=8,
+                )
+                if _dm_r.status_code == 200:
+                    for ans in _dm_r.json().get("Answer", []):
+                        if "v=DMARC1" in ans.get("data", ""):
+                            dmarc_ok = True
+            except Exception:
+                pass
+        _dm_color = "#10b981" if dmarc_ok else "#f59e0b"
+        _dm_icon  = "✅" if dmarc_ok else "⚠️"
+        _dm_label = "DMARC record found" if dmarc_ok else "No DMARC record"
+        st.markdown(
+            f"<div style='background:white;border-radius:12px;padding:18px 20px;"
+            f"border:1px solid #e9ecef;height:100%;'>"
+            f"<p style='font-size:11px;font-weight:700;color:#9ca3af;"
+            f"text-transform:uppercase;letter-spacing:0.7px;margin:0 0 8px;'>DMARC Record</p>"
+            f"<p style='font-size:22px;margin:0 0 4px;'>{_dm_icon}</p>"
+            f"<p style='font-size:13px;font-weight:600;color:{_dm_color};margin:0 0 4px;'>"
+            f"{_dm_label}</p>"
+            f"<p style='font-size:11px;color:#9ca3af;margin:0;'>"
+            f"{'Policy enforced ✓' if dmarc_ok else 'Recommended for trust'}</p>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
+    # ── Card 3: Bounce rate health ────────────────────────────────────────────
+    with dv3:
+        _b_delivered = 0
+        _b_bounces   = 0
+        _bounce_rate = 0.0
+        if _brevo_deliv:
+            try:
+                _b_agg = brevo_sender.get_aggregate_stats(_brevo_deliv, days=30)
+                _b_delivered = int(_b_agg.get("delivered", 0))
+                _b_bounces   = (int(_b_agg.get("hardBounces", 0)) +
+                                int(_b_agg.get("softBounces", 0)))
+                _bounce_rate = round(_b_bounces / _b_delivered * 100, 1) \
+                               if _b_delivered else 0.0
+            except Exception:
+                pass
+        _br_color = ("#10b981" if _bounce_rate < 2
+                     else "#f59e0b" if _bounce_rate < 5 else "#ef4444")
+        _br_icon  = "✅" if _bounce_rate < 2 else ("⚠️" if _bounce_rate < 5 else "🚨")
+        _br_label = ("Healthy" if _bounce_rate < 2
+                     else "Needs attention" if _bounce_rate < 5 else "Critical — fix now")
+        st.markdown(
+            f"<div style='background:white;border-radius:12px;padding:18px 20px;"
+            f"border:1px solid #e9ecef;height:100%;'>"
+            f"<p style='font-size:11px;font-weight:700;color:#9ca3af;"
+            f"text-transform:uppercase;letter-spacing:0.7px;margin:0 0 8px;'>Bounce Rate</p>"
+            f"<p style='font-size:22px;margin:0 0 4px;'>{_br_icon}</p>"
+            f"<p style='font-size:13px;font-weight:600;color:{_br_color};margin:0 0 4px;'>"
+            f"{_bounce_rate}% — {_br_label}</p>"
+            f"<p style='font-size:11px;color:#9ca3af;margin:0;'>"
+            f"Keep below 2% to protect sender reputation</p>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+
+    # ── Test email sender ─────────────────────────────────────────────────────
+    st.markdown(
+        "<div style='background:white;border-radius:12px;padding:20px 24px;"
+        "border:1px solid #e9ecef;'>"
+        "<p style='font-size:13px;font-weight:700;color:#111827;margin:0 0 4px;'>"
+        "📬 Send a test email to yourself</p>"
+        "<p style='font-size:12px;color:#6b7280;margin:0;'>"
+        "Send via Brevo to any inbox and check whether it lands in inbox or spam.</p>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+    _te1, _te2 = st.columns([3, 1])
+    with _te1:
+        _test_recipient = st.text_input(
+            "Your email address",
+            placeholder="yourname@gmail.com",
+            key="test_email_recipient",
+            label_visibility="collapsed",
+        )
+    with _te2:
+        _send_test = st.button("Send Test Email", use_container_width=True,
+                               key="btn_send_test")
+
+    if _send_test:
+        if not _brevo_deliv:
+            st.error("Add your Brevo API key in the sidebar first.")
+        elif not _from_email:
+            st.error("Add your From address in the sidebar first.")
+        elif not _test_recipient or "@" not in _test_recipient:
+            st.error("Enter a valid email address.")
+        else:
+            _brevo_name = (st.session_state.get("s_brevo_name", "") or "Aaron Pearson")
+            _test_html  = f"""
+            <div style="font-family:Arial,sans-serif;max-width:520px;padding:24px;
+                        border:1px solid #e5e7eb;border-radius:8px;">
+              <p style="font-size:15px;color:#111827;">Hi there,</p>
+              <p style="font-size:14px;color:#374151;line-height:1.7;">
+                This is a deliverability test email sent from your
+                <b>SEO Outreach Engine</b>.<br><br>
+                If you're reading this in your <b>inbox</b> — great, your
+                emails are landing correctly!<br><br>
+                If this arrived in <b>spam</b>, go to
+                <a href="https://mail-tester.com">mail-tester.com</a> for
+                a detailed score and fix suggestions.
+              </p>
+              <p style="font-size:13px;color:#9ca3af;margin-top:24px;">
+                Sent by {_brevo_name} · {_from_email}
+              </p>
+            </div>"""
+            _test_text = (
+                f"Hi,\n\nThis is a deliverability test from your SEO Outreach Engine.\n\n"
+                f"If you see this in your inbox — your emails are landing correctly.\n"
+                f"If it's in spam — visit mail-tester.com for a detailed fix.\n\n"
+                f"— {_brevo_name}"
+            )
+            with st.spinner("Sending test email…"):
+                _tok, _tres = brevo_sender.send_email(
+                    api_key=_brevo_deliv,
+                    sender_email=_from_email,
+                    sender_name=_brevo_name,
+                    recipient_email=_test_recipient,
+                    recipient_name="Test",
+                    subject="✉️ Deliverability test — did this land in inbox?",
+                    html_content=_test_html,
+                    text_content=_test_text,
+                    tags=["deliverability-test"],
+                )
+            if _tok:
+                st.success(
+                    f"✅ Sent! Check **{_test_recipient}** — "
+                    f"is it in inbox or spam? "
+                    f"For a detailed score visit [mail-tester.com](https://mail-tester.com)."
+                )
+            else:
+                st.error(f"Failed: {_tres}")
+
     # ── Search history table ──────────────────────────────────────────────────
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
     _section("Search History", "Every keyword × location combination you have ever searched.")
