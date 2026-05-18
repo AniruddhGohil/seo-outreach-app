@@ -55,39 +55,63 @@ def send_email(
     text_content: str,
     tags: Optional[list] = None,
     reply_to: Optional[str] = None,
+    plain_text_mode: bool = False,
 ) -> tuple:
     """
     Send one transactional email via Brevo.
     Returns (success: bool, message_id_or_error: str).
 
-    Brevo automatically:
-      - injects an open-tracking pixel
-      - wraps links with click-tracking redirects
-      - handles bounces and unsubscribes
+    plain_text_mode=True:
+      - Sends text/plain only (no HTML part, no tracking pixel)
+      - Gmail routes plain text emails to Primary inbox, not Promotions
+      - Open/click tracking is NOT available in this mode
+      - Recommended for cold outreach targeting Primary inbox
+
+    plain_text_mode=False (default):
+      - Sends multipart/alternative (HTML + text)
+      - Brevo injects open-tracking pixel and click-tracking redirects
+      - More likely to land in Promotions tab on Gmail
     """
     headers = {
         "api-key":      api_key,
         "Content-Type": "application/json",
         "Accept":       "application/json",
     }
-    # List-Unsubscribe + One-Click header: required by Gmail/Yahoo bulk sender
-    # rules and checked by mail-tester.com — big deliverability boost.
     _reply_addr = reply_to or sender_email
-    _unsub_header = f"<mailto:{_reply_addr}?subject=Unsubscribe>"
-    payload = {
-        "sender":      {"name": sender_name, "email": sender_email},
-        "to":          [{"email": recipient_email, "name": recipient_name}],
-        "replyTo":     {"email": _reply_addr},
-        "subject":     subject,
-        "htmlContent": html_content,
-        "textContent": text_content,
-        "tags":        tags or ["seo-outreach"],
-        "headers": {
-            "List-Unsubscribe":      _unsub_header,
-            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-            "X-Entity-Ref-ID":       recipient_email,   # prevents Gmail threading
-        },
-    }
+
+    if plain_text_mode:
+        # Plain text only — no HTML, no tracking pixel, no bulk-email signals.
+        # Gmail treats this as a person-to-person email → Primary inbox.
+        # List-Unsubscribe is intentionally omitted: it signals bulk sending,
+        # which would push us back into Promotions.
+        payload = {
+            "sender":      {"name": sender_name, "email": sender_email},
+            "to":          [{"email": recipient_email, "name": recipient_name}],
+            "replyTo":     {"email": _reply_addr},
+            "subject":     subject,
+            "textContent": text_content,
+            "tags":        tags or ["seo-outreach"],
+            "headers": {
+                "X-Entity-Ref-ID": recipient_email,
+            },
+        }
+    else:
+        # HTML mode — includes tracking but more likely to hit Promotions.
+        _unsub_header = f"<mailto:{_reply_addr}?subject=Unsubscribe>"
+        payload = {
+            "sender":      {"name": sender_name, "email": sender_email},
+            "to":          [{"email": recipient_email, "name": recipient_name}],
+            "replyTo":     {"email": _reply_addr},
+            "subject":     subject,
+            "htmlContent": html_content,
+            "textContent": text_content,
+            "tags":        tags or ["seo-outreach"],
+            "headers": {
+                "List-Unsubscribe":      _unsub_header,
+                "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+                "X-Entity-Ref-ID":       recipient_email,
+            },
+        }
     try:
         r = requests.post(
             f"{BREVO_BASE}/smtp/email",

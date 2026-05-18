@@ -52,6 +52,7 @@ def _background_send_worker(
     is_followup: int = 0,     # 0 = first touch, 1 = follow-up 1, 2 = follow-up 2
     portfolio_url: str = "",
     case_study: str = "",
+    plain_text_mode: bool = False,
 ):
     """
     Daemon thread: sends one email per lead_id via Brevo (preferred) or Gmail SMTP.
@@ -98,6 +99,7 @@ def _background_send_worker(
                 subject=subject,
                 html_content=html_body,
                 text_content=text_body,
+                plain_text_mode=plain_text_mode,
             )
             if ok:
                 message_id = result
@@ -164,7 +166,8 @@ def _queue_and_send(lead_ids: list, sender_email: str,
                     app_password: str, sender_name: str,
                     delay_secs: int, template: str = "short",
                     brevo_key: str = "", is_followup: int = 0,
-                    portfolio_url: str = "", case_study: str = "") -> bool:
+                    portfolio_url: str = "", case_study: str = "",
+                    plain_text_mode: bool = False) -> bool:
     """
     Mark leads as 'queued' in the DB, then start the background thread.
     Returns False if a send is already running.
@@ -195,7 +198,7 @@ def _queue_and_send(lead_ids: list, sender_email: str,
         target=_background_send_worker,
         args=(lead_ids, sender_email, app_password, sender_name,
               delay_secs, template, brevo_key, is_followup,
-              portfolio_url, case_study),
+              portfolio_url, case_study, plain_text_mode),
         daemon=True,
         name="email-sender",
     )
@@ -1898,6 +1901,26 @@ with tab_send:
                                or st.secrets.get("brevo_key",""))
             method_label = "via Brevo" if _brevo_key_send else "via Gmail SMTP"
 
+            # ── Plain text mode toggle ─────────────────────────────────────
+            if _brevo_key_send:
+                _plain_mode = st.toggle(
+                    "📨 Plain text mode — targets Primary inbox (not Promotions)",
+                    value=True,
+                    key="plain_text_toggle",
+                    help=(
+                        "ON  → sends plain text only. No tracking pixel. "
+                        "Gmail routes these to Primary inbox.\n\n"
+                        "OFF → sends full HTML with open/click tracking. "
+                        "More likely to land in Promotions tab."
+                    ),
+                )
+                if _plain_mode:
+                    st.caption("📨 Plain text · No open/click tracking · Primary inbox targeting")
+                else:
+                    st.caption("🎨 HTML email · Open & click tracking active · May land in Promotions")
+            else:
+                _plain_mode = False
+
             if _is_running:
                 st.warning("⏳ A send is already running. Wait or stop it first.")
             else:
@@ -1915,6 +1938,7 @@ with tab_send:
                         ids, sender_email, app_password, _eff_name,
                         delay_sec, tpl_choice, _brevo_key_send,
                         portfolio_url=_port, case_study=_cs,
+                        plain_text_mode=_plain_mode,
                     )
                     if started:
                         st.success(
