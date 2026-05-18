@@ -1,16 +1,23 @@
 """
-database.py – Persistent storage via Turso (cloud SQLite) with local SQLite fallback.
+database.py – Persistent storage via Turso HTTP API with local SQLite fallback.
 
-Turso keeps data alive across Streamlit Cloud restarts (which wipe the local filesystem).
-If turso_url / turso_token are not set in st.secrets, falls back to local leads.db.
+Turso HTTP API needs only the 'requests' library (already a dependency).
+No native binaries — works on Streamlit Cloud out of the box.
+
+Set in st.secrets:
+    turso_url   = "libsql://your-db.turso.io"
+    turso_token = "your-auth-token"
+
+If those secrets are absent, falls back to local leads.db (data lost on restart).
 """
 import os
 import sqlite3
 import pandas as pd
+import requests as _requests
 from datetime import datetime
 from typing import Optional, List
 
-# ── Turso credentials (from Streamlit secrets or env vars) ────────────────────
+# ── Turso credentials ─────────────────────────────────────────────────────────
 try:
     import streamlit as st
     _TURSO_URL   = st.secrets.get("turso_url",   "")
@@ -20,91 +27,166 @@ except Exception:
     _TURSO_TOKEN = os.environ.get("TURSO_TOKEN",  "")
 
 _USE_TURSO = bool(_TURSO_URL and _TURSO_TOKEN)
-
-try:
-    import libsql_experimental as libsql  # type: ignore
-    _LIBSQL_OK = True
-except ImportError:
-    _LIBSQL_OK = False
-
-# Local replica path — /tmp is always writable on Streamlit Cloud
-_LOCAL_DB = "/tmp/leads.db" if _USE_TURSO else "leads.db"
+# libsql:// → https:// for the HTTP pipeline API
+_TURSO_HTTP = _TURSO_URL.replace("libsql://", "https://") if _TURSO_URL else ""
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Connection wrapper
+# Turso HTTP API helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
-class _SyncConn:
+def _to_turso_arg(v):
+    """Convert a Python value to a Turso HTTP API argument object."""
+    if v is None:
+        return {"type": "null"}
+    if isinstance(v, bool):
+        return {"type": "integer", "value": "1" if v else "0"}
+    if isinstance(v, int):
+        return {"type": "integer", "value": str(v)}
+    if isinstance(v, float):
+        return {"type": "float", "value": str(v)}
+    return {"type": "text", "value": str(v)}
+
+
+def _from_turso_val(v: dict):
+    """Convert a Turso HTTP API value object to a Python native type."""
+    t = v.get("type")
+    if t == "null":
+        return None
+    if t == "integer":
+        return int(v["value"])
+    if t == "float":
+        return float(v["value"])
+    return v.get("value")  # text / blob → str
+
+
+def _turso_execute(sql: str, params=()) -> dict:
     """
-    Wraps a libsql_experimental connection so it behaves like sqlite3:
-    - Pulls fresh data from Turso on creation (conn.sync).
-    - Pushes writes back to Turso on commit (conn.sync only when dirty).
-    - Supports the 'with conn:' context manager — commits on success,
-      rolls back on exception, closes on exit.
+    Execute one SQL statement via Turso HTTP pipeline API.
+    Returns the 'result' dict:  {cols, rows, last_insert_rowid, affected_row_count}
+    Raises Exception on SQL error or HTTP failure.
     """
+    args = [_to_turso_arg(p) for p in params]
+    payload = {
+        "requests": [
+            {"type": "execute", "stmt": {"sql": sql, "args": args}},
+            {"type": "close"},
+        ]
+    }
+    resp = _requests.post(
+        f"{_TURSO_HTTP}/v2/pipeline",
+        headers={
+            "Authorization": f"Bearer {_TURSO_TOKEN}",
+            "Content-Type":  "application/json",
+        },
+        json=payload,
+        timeout=20,
+    )
+    resp.raise_for_status()
+    first = resp.json()["results"][0]
+    if first["type"] == "error":
+        raise Exception(first["error"]["message"])
+    return first["response"]["result"]
 
-    _WRITE_PREFIXES = ("INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "ALTER", "REPLACE")
 
-    def __init__(self, raw):
-        self._raw   = raw
-        self._dirty = False
+# ─────────────────────────────────────────────────────────────────────────────
+# Cursor / Connection shims — sqlite3-compatible interface over Turso HTTP
+# ─────────────────────────────────────────────────────────────────────────────
 
-    # ── Forwarded methods ─────────────────────────────────────────────────────
+class _TursoCursor:
+    """Cursor-like object built from a Turso HTTP API result."""
+
+    def __init__(self, result: dict):
+        cols        = [c["name"] for c in result.get("cols", [])]
+        raw_rows    = result.get("rows", [])
+        self._rows  = [tuple(_from_turso_val(v) for v in row) for row in raw_rows]
+        self.description = (
+            [(c, None, None, None, None, None, None) for c in cols]
+            if cols else None
+        )
+        last_id         = result.get("last_insert_rowid")
+        self.lastrowid  = int(last_id) if last_id is not None else None
+        self.rowcount   = result.get("affected_row_count", 0)
+        self._pos       = 0
+
+    def fetchone(self):
+        if self._pos < len(self._rows):
+            row = self._rows[self._pos]
+            self._pos += 1
+            return row
+        return None
+
+    def fetchall(self):
+        rows = self._rows[self._pos:]
+        self._pos = len(self._rows)
+        return rows
+
+
+class _TursoProxyCursor:
+    """Cursor object returned by _TursoConn.cursor() — delegates execute() back."""
+
+    def __init__(self, conn: "_TursoConn"):
+        self._conn = conn
+        self._cur: Optional[_TursoCursor] = None
 
     def execute(self, sql, params=()):
-        cur = self._raw.execute(sql, params)
-        if sql.strip().upper().startswith(self._WRITE_PREFIXES):
-            self._dirty = True
-        return cur
+        self._cur = self._conn.execute(sql, params)
+        return self
 
-    def executemany(self, sql, seq):
-        cur = self._raw.executemany(sql, seq)
-        self._dirty = True
-        return cur
+    def fetchone(self):
+        return self._cur.fetchone() if self._cur else None
+
+    def fetchall(self):
+        return self._cur.fetchall() if self._cur else []
+
+    @property
+    def description(self):
+        return self._cur.description if self._cur else None
+
+    @property
+    def lastrowid(self):
+        return self._cur.lastrowid if self._cur else None
+
+
+class _TursoConn:
+    """
+    sqlite3-compatible connection backed by Turso HTTP API.
+    Supports: execute(), cursor(), commit() (no-op), rollback() (no-op),
+              close() (no-op), and 'with conn:' context manager.
+    """
+
+    def execute(self, sql, params=()):
+        result = _turso_execute(sql, params)
+        return _TursoCursor(result)
 
     def cursor(self):
-        return self._raw.cursor()
-
-    # ── Commit / rollback / close ─────────────────────────────────────────────
+        return _TursoProxyCursor(self)
 
     def commit(self):
-        self._raw.commit()
-        if self._dirty:
-            self._raw.sync()   # push to Turso
-            self._dirty = False
+        pass   # HTTP API is auto-commit per request
 
     def rollback(self):
-        self._raw.rollback()
-        self._dirty = False
+        pass
 
     def close(self):
-        try:
-            self._raw.close()
-        except Exception:
-            pass
-
-    # ── Context manager ───────────────────────────────────────────────────────
+        pass
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type is None:
-            self.commit()
-        else:
-            self.rollback()
-        self.close()
-        return False
+        return False   # don't suppress exceptions
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Public connection factory
+# ─────────────────────────────────────────────────────────────────────────────
 
 def get_conn():
-    """Return a database connection — Turso (cloud) or local SQLite."""
-    if _USE_TURSO and _LIBSQL_OK:
-        raw = libsql.connect(_LOCAL_DB, sync_url=_TURSO_URL, auth_token=_TURSO_TOKEN)
-        raw.sync()          # pull latest from Turso into local replica
-        return _SyncConn(raw)
-    return sqlite3.connect(_LOCAL_DB, check_same_thread=False)
+    """Return a Turso HTTP connection, or a local SQLite connection as fallback."""
+    if _USE_TURSO:
+        return _TursoConn()
+    return sqlite3.connect("leads.db", check_same_thread=False)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -113,8 +195,8 @@ def get_conn():
 
 def _read_sql(sql: str, conn, params=None) -> pd.DataFrame:
     """
-    pandas-compatible SQL reader that works with both sqlite3 and libsql.
-    Replaces pd.read_sql_query() which may not recognise libsql connections.
+    pandas-compatible SQL reader for both sqlite3 and _TursoConn.
+    Replaces pd.read_sql_query() which doesn't recognise custom connection types.
     """
     cur = conn.execute(sql, params or [])
     if cur.description is None:
@@ -129,13 +211,10 @@ def _row_to_dict(cursor, row) -> dict:
     return dict(zip(cols, row))
 
 
-def _catch_operational(exc) -> bool:
-    """Return True if exc is an OperationalError from either sqlite3 or libsql."""
-    return isinstance(exc, (sqlite3.OperationalError, Exception)) and (
-        "duplicate column" in str(exc).lower()
-        or "already exists" in str(exc).lower()
-        or type(exc).__name__ == "OperationalError"
-    )
+def _is_unique_error(exc: Exception) -> bool:
+    """Return True if exc is a UNIQUE constraint violation from either backend."""
+    msg = str(exc).upper()
+    return "UNIQUE" in msg or isinstance(exc, sqlite3.IntegrityError)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -145,7 +224,6 @@ def _catch_operational(exc) -> bool:
 def init_db():
     """Create tables and apply any missing schema migrations."""
     with get_conn() as conn:
-        # ── Leads table ───────────────────────────────────────────────────────
         conn.execute("""
             CREATE TABLE IF NOT EXISTS leads (
                 id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -169,7 +247,7 @@ def init_db():
             ON leads(email) WHERE email IS NOT NULL AND email != ''
         """)
 
-        # Migrations — fail silently if column already exists
+        # Migrations — silently skip if column already exists
         for col, typedef in [
             ("email_source",      "TEXT"),
             ("brevo_message_id",  "TEXT"),
@@ -182,9 +260,8 @@ def init_db():
             try:
                 conn.execute(f"ALTER TABLE leads ADD COLUMN {col} {typedef}")
             except Exception:
-                pass  # column already exists
+                pass
 
-        # ── Search history table ──────────────────────────────────────────────
         conn.execute("""
             CREATE TABLE IF NOT EXISTS search_history (
                 id             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -196,7 +273,6 @@ def init_db():
                 created_at     TEXT DEFAULT (datetime('now'))
             )
         """)
-
         conn.commit()
 
 
@@ -205,14 +281,10 @@ def init_db():
 # ─────────────────────────────────────────────────────────────────────────────
 
 def insert_lead(lead: dict) -> bool:
-    """
-    Insert a lead row.  Returns True if new, False if duplicate.
-    Leads with no email are always inserted (no unique constraint on NULL).
-    """
+    """Insert a lead. Returns True if new, False if duplicate email."""
     status       = lead.get("status", "new")
     email        = lead.get("email") or None
     email_source = lead.get("email_source") or None
-
     try:
         with get_conn() as conn:
             conn.execute("""
@@ -229,10 +301,8 @@ def insert_lead(lead: dict) -> bool:
             ))
             conn.commit()
             return True
-    except sqlite3.IntegrityError:
-        return False
     except Exception as e:
-        if "UNIQUE" in str(e).upper() or "unique" in str(e).lower():
+        if _is_unique_error(e):
             return False
         return False
 
@@ -253,7 +323,7 @@ def is_duplicate_lead(website: str = "", phone: str = "") -> bool:
 
 
 def get_lead_by_email(email: str) -> Optional[dict]:
-    """Return the first lead row that has this email address, or None."""
+    """Return the first lead with this email address, or None."""
     if not email or not email.strip():
         return None
     with get_conn() as conn:
@@ -348,11 +418,7 @@ def record_followup(lead_id: int, touch: int):
 
 
 def get_leads_for_followup(touch: int = 1, days_after: int = 3) -> pd.DataFrame:
-    """
-    Return leads due for a follow-up:
-    - touch=1: sent 3+ days ago, no follow-up 1 yet
-    - touch=2: follow-up 1 sent 7+ days ago, no follow-up 2 yet
-    """
+    """Return leads due for a follow-up touch (1 = day 3, 2 = day 7)."""
     col      = "followup1_sent_at" if touch == 1 else "followup2_sent_at"
     prev_col = "email_sent_at"     if touch == 1 else "followup1_sent_at"
     with get_conn() as conn:
@@ -393,10 +459,7 @@ def get_stats() -> dict:
 
 def save_search(keyword: str, location: str, country: str,
                 results_count: int = 0, new_leads: int = 0) -> int:
-    """
-    Record a search query in history.
-    Returns the row ID so counts can be updated with update_search_result().
-    """
+    """Record a search. Returns the new row ID."""
     with get_conn() as conn:
         cur = conn.execute("""
             INSERT INTO search_history (keyword, location, country, results_count, new_leads)
@@ -407,7 +470,7 @@ def save_search(keyword: str, location: str, country: str,
 
 
 def update_search_result(search_id: int, results_count: int, new_leads: int):
-    """Update the result counts for a previously saved search."""
+    """Update result counts for a previously saved search."""
     with get_conn() as conn:
         conn.execute("""
             UPDATE search_history SET results_count=?, new_leads=? WHERE id=?
