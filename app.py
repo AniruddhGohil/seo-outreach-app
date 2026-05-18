@@ -888,6 +888,177 @@ with tab_find:
 
     st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
 
+    # ── Batch Search ──────────────────────────────────────────────────────────
+    _UK_TRADES = """\
+emergency plumber, Birmingham, United Kingdom
+boiler repair, Manchester, United Kingdom
+electrician, Leeds, United Kingdom
+roofer, Sheffield, United Kingdom
+builder, Nottingham, United Kingdom
+gas engineer, Leicester, United Kingdom
+pest control, Glasgow, United Kingdom
+removals company, Bristol, United Kingdom
+locksmith, Edinburgh, United Kingdom
+carpet cleaning, Cardiff, United Kingdom"""
+
+    _UK_PROFESSIONALS = """\
+mortgage broker, Leeds, United Kingdom
+personal injury solicitor, Sheffield, United Kingdom
+private dentist, Bristol, United Kingdom
+physio, Edinburgh, United Kingdom
+accountant, Birmingham, United Kingdom
+estate agent, Manchester, United Kingdom
+driving instructor, Nottingham, United Kingdom
+cosmetic clinic, Glasgow, United Kingdom
+immigration solicitor, Leicester, United Kingdom
+financial advisor, Cardiff, United Kingdom"""
+
+    _LONDON_TRADES = """\
+emergency plumber, CR0 Croydon, United Kingdom
+boiler repair, BR2 Bromley, United Kingdom
+electrician, HA3 Harrow, United Kingdom
+roofer, E17 London, United Kingdom
+builder, SW16 London, United Kingdom
+gas engineer, SE25 London, United Kingdom
+pest control, RM1 Romford, United Kingdom
+locksmith, N17 London, United Kingdom
+carpet cleaning, UB1 Southall, United Kingdom
+removals company, IG1 Ilford, United Kingdom"""
+
+    _LONDON_PROFESSIONALS = """\
+mortgage broker, HA3 Harrow, United Kingdom
+personal injury solicitor, CR0 Croydon, United Kingdom
+private dentist, BR2 Bromley, United Kingdom
+physio, SW16 London, United Kingdom
+accountant, IG1 Ilford, United Kingdom
+estate agent, E17 London, United Kingdom
+immigration solicitor, UB1 Southall, United Kingdom
+cosmetic clinic, N22 London, United Kingdom
+driving instructor, SE25 London, United Kingdom
+financial advisor, RM1 Romford, United Kingdom"""
+
+    with st.expander("⚡ Batch Search — run multiple keywords at once", expanded=False):
+        st.markdown(
+            "<p style='font-size:13px;color:#6b7280;margin:0 0 12px;'>"
+            "Enter one search per line: <code>keyword, city, country</code>. "
+            "Country defaults to United Kingdom if omitted. "
+            "Use templates below to get started instantly.</p>",
+            unsafe_allow_html=True,
+        )
+
+        # Template buttons
+        t1, t2, t3, t4 = st.columns(4)
+        with t1:
+            if st.button("🔧 UK Trades", use_container_width=True):
+                st.session_state["batch_text"] = _UK_TRADES
+        with t2:
+            if st.button("💼 UK Professionals", use_container_width=True):
+                st.session_state["batch_text"] = _UK_PROFESSIONALS
+        with t3:
+            if st.button("🔧 London Trades", use_container_width=True):
+                st.session_state["batch_text"] = _LONDON_TRADES
+        with t4:
+            if st.button("💼 London Professionals", use_container_width=True):
+                st.session_state["batch_text"] = _LONDON_PROFESSIONALS
+
+        batch_text = st.text_area(
+            "Search list",
+            value=st.session_state.get("batch_text", ""),
+            height=220,
+            placeholder="emergency plumber, Birmingham, United Kingdom\nmortgage broker, Leeds, United Kingdom\nprivate dentist, Bristol, United Kingdom",
+            label_visibility="collapsed",
+            key="batch_textarea",
+        )
+
+        _bp1, _bp2 = st.columns([2, 1])
+        with _bp1:
+            batch_pages = st.slider("Pages per search", 1, 10, 3, key="batch_pages",
+                                    help="3 pages ≈ 30 businesses per keyword. "
+                                         "Lower = faster batch, higher = more leads per search.")
+        with _bp2:
+            batch_email = st.toggle("Auto-extract emails", value=True, key="batch_email")
+
+        _b_lines = [l.strip() for l in batch_text.strip().splitlines() if l.strip() and not l.startswith("#")]
+        st.caption(f"{'📋 ' + str(len(_b_lines)) + ' searches queued' if _b_lines else '⬆ Fill in the list above or pick a template'}")
+
+        if st.button("🚀 Run Batch Search", type="primary",
+                     use_container_width=True, key="btn_batch"):
+            if not _b_lines:
+                st.error("Add at least one search to the list.")
+            else:
+                _serper_key  = st.session_state.get("s_serper","") or st.secrets.get("serper_key","")
+                _fsq_key     = st.session_state.get("s_fsq","")    or st.secrets.get("foursquare_key","")
+                _gplaces_key = st.session_state.get("s_gplaces","")or st.secrets.get("google_places_key","")
+                _yelp_key    = st.session_state.get("s_yelp","")   or st.secrets.get("yelp_api_key","")
+
+                _batch_prog  = st.progress(0, text="Starting batch…")
+                _batch_log   = st.empty()
+                _batch_lines: list = []
+
+                def _blog(msg):
+                    _batch_lines.append(msg)
+                    _batch_log.markdown("```\n" + "\n".join(_batch_lines[-25:]) + "\n```")
+
+                _b_total_new = 0
+                _b_total_biz = 0
+
+                for _bi, _line in enumerate(_b_lines):
+                    parts = [p.strip() for p in _line.split(",")]
+                    if len(parts) < 2:
+                        _blog(f"⚠️  Skipping invalid line: {_line}")
+                        continue
+                    _b_kw   = parts[0]
+                    _b_loc  = parts[1]
+                    _b_ctry = parts[2] if len(parts) >= 3 else "United Kingdom"
+
+                    _pct = int(_bi / len(_b_lines) * 100)
+                    _batch_prog.progress(_pct,
+                        text=f"Search {_bi+1}/{len(_b_lines)}: {_b_kw} in {_b_loc}")
+                    _blog(f"\n🔍 [{_bi+1}/{len(_b_lines)}] {_b_kw} · {_b_loc}, {_b_ctry}")
+
+                    _b_sid = save_search(_b_kw, _b_loc, _b_ctry)
+                    _b_bizs = find_businesses(
+                        keyword=_b_kw, location=_b_loc, country=_b_ctry,
+                        max_pages=batch_pages,
+                        skip_top=10,  # always target page 2+
+                        serper_key=_serper_key, foursquare_key=_fsq_key,
+                        yelp_api_key=_yelp_key, google_places_key=_gplaces_key,
+                        log_cb=_blog,
+                    )
+
+                    _b_new = 0
+                    for _biz in _b_bizs:
+                        if is_duplicate_lead(website=_biz.get("website",""),
+                                             phone=_biz.get("phone","")):
+                            continue
+                        if batch_email and _biz.get("website"):
+                            _em, _es = find_email_on_website(
+                                _biz["website"], use_guess_fallback=False
+                            )
+                            _biz["email"]        = _em
+                            _biz["email_source"] = _es
+                            if not _em:
+                                _biz["status"] = "no_email"
+                        else:
+                            _biz["email"] = None
+                            _biz["email_source"] = None
+                            _biz["status"] = "no_email"
+
+                        if insert_lead(_biz):
+                            _b_new += 1
+
+                    update_search_result(_b_sid, len(_b_bizs), _b_new)
+                    _blog(f"  ✅ {_b_new} new leads saved from {len(_b_bizs)} businesses")
+                    _b_total_new += _b_new
+                    _b_total_biz += len(_b_bizs)
+
+                _batch_prog.progress(100, text="Batch complete!")
+                st.success(
+                    f"✅ Batch done — **{_b_total_new} new leads** saved "
+                    f"from {_b_total_biz} businesses across {len(_b_lines)} searches. "
+                    f"Go to **Send Emails** to start outreach."
+                )
+
     with st.container():
         c1, c2, c3 = st.columns([2, 2, 1])
         with c1:
