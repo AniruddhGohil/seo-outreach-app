@@ -552,6 +552,18 @@ div[data-baseweb="select"] > div:first-child {
 [data-testid="stToolbar"],
 [data-testid="stDecoration"],
 [data-testid="stStatusWidget"] { display: none !important; }
+
+/* ── Prevent page dimming / blur during Streamlit reruns ── */
+/* Streamlit reduces opacity on the app container while a rerun is in
+   progress. This makes the whole page look "blurred" when any widget
+   is clicked. Setting opacity to 1 at all times removes that effect. */
+[data-testid="stAppViewContainer"],
+[data-testid="stAppViewContainer"] > section,
+.stApp { opacity: 1 !important; transition: none !important; }
+
+/* Hide the top running progress bar that pulses during reruns */
+[data-testid="stProgressBar"],
+div[class*="StatusWidget"] { display: none !important; }
 </style>
 """, unsafe_allow_html=True)
 
