@@ -717,7 +717,7 @@ with st.sidebar:
                 "Gmail SMTP</div>", unsafe_allow_html=True)
 
     _def_email = st.secrets.get("smtp_email",    "")
-    _def_name  = st.secrets.get("smtp_name",     "")
+    _def_name  = st.secrets.get("smtp_name",     "Aaron Pearson")
     _def_pass  = st.secrets.get("smtp_password", "")
 
     sender_email = st.text_input("From address",   value=_def_email, placeholder="you@gmail.com", key="s_email")
