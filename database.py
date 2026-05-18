@@ -189,6 +189,27 @@ def get_conn():
     return sqlite3.connect("leads.db", check_same_thread=False)
 
 
+def test_connection() -> tuple:
+    """
+    Test the active database connection.
+    Returns (ok: bool, message: str, backend: str).
+    """
+    if _USE_TURSO:
+        try:
+            _turso_execute("SELECT 1")
+            return True, f"Turso connected · {_TURSO_HTTP}", "turso"
+        except Exception as e:
+            return False, f"Turso ERROR: {e}", "turso_failed"
+    else:
+        if not _TURSO_URL and not _TURSO_TOKEN:
+            return False, "Turso secrets not found — using local SQLite (data lost on reboot)", "sqlite_no_secrets"
+        if not _TURSO_URL:
+            return False, "turso_url secret missing", "sqlite_missing_url"
+        if not _TURSO_TOKEN:
+            return False, "turso_token secret missing", "sqlite_missing_token"
+        return False, "Turso not configured — using local SQLite", "sqlite"
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Internal helpers
 # ─────────────────────────────────────────────────────────────────────────────

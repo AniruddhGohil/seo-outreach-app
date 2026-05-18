@@ -22,7 +22,7 @@ from database import (
     get_leads_for_followup, get_leads_with_email, get_search_history,
     get_stats, init_db, insert_lead, is_duplicate_lead, record_followup,
     save_search, set_leads_queued, update_search_result, update_status,
-    update_tracking, delete_search_history,
+    update_tracking, delete_search_history, test_connection,
 )
 from email_finder import find_email_on_website
 import brevo_sender
@@ -651,6 +651,29 @@ with st.sidebar:
         for key in ["_authenticated", "_user_email", "_user_name", "google_login_btn"]:
             st.session_state.pop(key, None)
         st.rerun()
+
+    # ── Database connection status ────────────────────────────────────────
+    _db_ok, _db_msg, _db_backend = test_connection()
+    if _db_ok:
+        st.markdown(
+            "<div style='background:#052e16;border:1px solid #166534;"
+            "border-radius:8px;padding:8px 12px;margin:8px 0;'>"
+            "<div style='font-size:11px;font-weight:700;color:#4ade80;"
+            "letter-spacing:0.5px;'>🗄️ TURSO · DATA SAFE</div>"
+            "<div style='font-size:10px;color:#86efac;margin-top:2px;'>"
+            "All leads persist across restarts</div></div>",
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            f"<div style='background:#450a0a;border:1px solid #991b1b;"
+            f"border-radius:8px;padding:8px 12px;margin:8px 0;'>"
+            f"<div style='font-size:11px;font-weight:700;color:#f87171;"
+            f"letter-spacing:0.5px;'>⚠️ LOCAL SQLITE · DATA AT RISK</div>"
+            f"<div style='font-size:10px;color:#fca5a5;margin-top:2px;'>"
+            f"{_db_msg}</div></div>",
+            unsafe_allow_html=True,
+        )
 
     # ── Background send indicator ─────────────────────────────────────────
     with bg_state.LOCK:
