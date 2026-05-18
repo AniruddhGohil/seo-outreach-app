@@ -1,23 +1,25 @@
 """
 email_finder.py – Extract a real contact email from a business website.
 
-Extraction techniques (in order of reliability):
-  1.  Cloudflare email-protection decoder (__cf_email__)
-  2.  mailto: href links
-  3.  JSON-LD schema.org email / contactPoint fields
-  4.  Meta tag email fields (og:email, meta name="email")
-  5.  <address> and <footer> tags (semantically high-signal)
-  6.  onclick / JS string mailto: extraction
-  7.  data-email / data-mail / data-contact attributes
-  8.  Regex near contact-keyword context windows (±300 chars)
-  9.  Obfuscation decoding ([at], (at), {at}, "name at domain dot com")
- 10.  Regex on all visible page text
- 11.  Raw HTML source regex
- 12.  Homepage internal-link discovery → follow contact/about links
- 13.  Sitemap.xml discovery of extra contact/about pages
- 14.  Email ranking: prefer owner-name emails over generic info@
- 15.  Guess fallback (info@, contact@) ONLY if domain confirmed live
-      and at least one page was actually fetched.
+Extraction techniques (in priority order):
+  1.  URL variation retry  (https→http, www↔non-www)
+  2.  Cloudflare email-protection decoder (__cf_email__)
+  3.  mailto: href links
+  4.  JSON-LD schema.org email / contactPoint / author fields
+  5.  Meta tag email fields (og:email, meta name="email")
+  6.  <address> and <footer> tags (semantically high-signal)
+  7.  Elements with contact-like class/id names
+  8.  onclick / JS string mailto: extraction
+  9.  data-email / data-mail / data-contact attributes
+ 10.  HTML comments (devs sometimes leave test emails there)
+ 11.  Regex near contact-keyword context windows (±300 chars)
+ 12.  Obfuscation decoding ([at], (at), {at}, base64, "name at domain dot com")
+ 13.  Regex on all visible page text
+ 14.  Raw HTML source regex
+ 15.  Homepage internal-link discovery → follow contact/about links
+ 16.  robots.txt → sitemap discovery
+ 17.  Sitemap.xml discovery of extra contact/about/privacy pages
+ 18.  Email ranking: prefer owner-name emails over generic info@
 """
 import json
 import random
@@ -27,7 +29,7 @@ from typing import Optional, List, Tuple
 from urllib.parse import urljoin, urlparse
 
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Comment
 
 _USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -45,7 +47,7 @@ _SKIP_DOMAINS = {
     "example.com", "test.com", "domain.com", "email.com",
     "sentry.io", "wixpress.com", "squarespace.com", "wordpress.com",
     "shopify.com", "amazonaws.com", "googletagmanager.com",
-    "google.com", "google.co.uk", "google.com.au",
+    "google.com", "google.co.uk", "google.com.au", "googleanalytics.com",
     "facebook.com", "twitter.com", "instagram.com", "x.com",
     "schema.org", "w3.org", "jquery.com", "cloudflare.com",
     "gravatar.com", "googleapis.com", "gstatic.com", "apple.com",
@@ -56,9 +58,11 @@ _SKIP_DOMAINS = {
     "wpengine.com", "godaddy.com", "bluehost.com", "siteground.com",
     "elementor.com", "wp.com", "weebly.com", "webflow.com",
     "yoast.com", "ahrefs.com", "semrush.com", "moz.com",
+    "recaptcha.net", "doubleclick.net", "hotjar.com", "intercom.io",
+    "crisp.chat", "drift.com", "olark.com", "tawk.to",
 }
 
-# Email prefixes that are system/noreply — skip these
+# Email prefixes that are system/noreply — always skip
 _SKIP_PREFIXES = {
     "noreply", "no-reply", "donotreply", "do-not-reply",
     "mailer-daemon", "postmaster", "webmaster",
@@ -67,17 +71,19 @@ _SKIP_PREFIXES = {
     "feedback", "daemon", "root", "hostmaster",
 }
 
-# Generic email prefixes — still valid but ranked lower than personal ones
+# Generic but still valid — ranked lower than personal emails
 _GENERIC_PREFIXES = {
     "info", "contact", "hello", "enquiries", "enquiry",
     "office", "mail", "admin", "sales", "team", "general",
     "reception", "service", "services", "help", "support",
+    "bookings", "booking", "reservations", "orders", "order",
+    "accounts", "billing", "accounts", "quote", "quotes",
 }
 
 _ASSET_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".js", ".css",
                ".woff", ".woff2", ".ttf", ".eot", ".ico", ".pdf", ".zip"}
 
-# Ordered by expected yield — tried after homepage
+# Contact/about pages — tried after homepage (highest yield first)
 _CONTACT_PATHS = [
     "/contact",
     "/contact-us",
@@ -106,32 +112,49 @@ _CONTACT_PATHS = [
     "/hello",
     "/help",
     "/support",
-    "/pages/contact",        # Shopify
+    # GDPR / legal pages — businesses must list a contact email here
+    "/privacy-policy",
+    "/privacy",
+    "/legal",
+    "/terms",
+    "/terms-and-conditions",
+    "/terms-of-service",
+    # Additional high-yield pages
+    "/faq",
+    "/our-story",
+    "/story",
+    "/who-we-are",
+    "/locations",
+    "/find-us",
+    "/pages/contact",       # Shopify
     "/pages/about",
     "/pages/contact-us",
     "/pages/get-in-touch",
-    "/en/contact",           # Multilingual sites
+    "/en/contact",          # Multilingual sites
     "/en/about",
+    "/au/contact",          # Australian subpaths
 ]
 
-# Common email prefixes for guess fallback (ordered by likelihood)
-_COMMON_PREFIXES = [
-    "info", "contact", "hello", "enquiries", "office",
-    "mail", "admin", "sales", "team",
-]
+# Regex for spelled-out email obfuscation
+_SPELLED_AT  = re.compile(r"(\w[\w.\-]+)\s+at\s+([\w\-]+)\s+dot\s+([\w]{2,6})",
+                            re.IGNORECASE)
+_SPELLED_AT2 = re.compile(r"(\w[\w.\-]+)\s*\[at\]\s*([\w\-]+)\s*\[dot\]\s*([\w]{2,6})",
+                            re.IGNORECASE)
 
-# Keywords whose nearby text very likely contains an email
+# Keywords whose nearby text likely contains an email
 _CONTACT_KEYWORDS = re.compile(
     r"(e[\s\-]?mail|contact|reach\s+us|write\s+to|get\s+in\s+touch|"
-    r"send\s+us|drop\s+us|email\s+us|reach\s+out|enquir|get\s+a\s+quote)",
+    r"send\s+us|drop\s+us|email\s+us|reach\s+out|enquir|get\s+a\s+quote|"
+    r"call\s+us|phone|address|location)",
     re.IGNORECASE,
 )
 
-# Patterns for spelled-out obfuscation: "john at domain dot com"
-_SPELLED_AT  = re.compile(r"(\w[\w.\-]+)\s+at\s+([\w\-]+)\s+dot\s+([\w]{2,6})",
-                           re.IGNORECASE)
-_SPELLED_AT2 = re.compile(r"(\w[\w.\-]+)\s*\[at\]\s*([\w\-]+)\s*\[dot\]\s*([\w]{2,6})",
-                           re.IGNORECASE)
+# Class/id patterns that are semantically high-signal for contact info
+_CONTACT_CLASS_RE = re.compile(
+    r"(contact|email|e-mail|reach|touch|enquir|footer|header-contact|"
+    r"site-info|widget-contact|contact-info|get-in-touch|address)",
+    re.IGNORECASE,
+)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -156,26 +179,26 @@ def _clean_email(raw: str) -> Optional[str]:
     # Skip CSS selectors, template strings
     if re.search(r"[{}()\[\]#]", email):
         return None
-    # Skip emails that look like version strings (e.g. 1.0@something)
+    # Skip version strings (e.g. 1.0@something)
     if re.match(r"^\d+[\d.]*@", email):
         return None
     # Skip very long prefixes (likely junk)
     if len(prefix) > 40:
         return None
+    # Skip single-char prefixes
+    if len(prefix) < 2:
+        return None
     return email
 
 
 def _rank_email(email: str) -> int:
-    """
-    Lower score = better (return first).
-    Personal/direct emails ranked above generic info@ addresses.
-    """
+    """Lower = better. Personal emails first, generic second."""
     prefix = email.split("@")[0]
-    if prefix in _GENERIC_PREFIXES:
-        return 2    # generic but valid
     if prefix in _SKIP_PREFIXES:
-        return 99   # should already be filtered, but just in case
-    return 1        # personal / named email — best
+        return 99
+    if prefix in _GENERIC_PREFIXES:
+        return 2
+    return 1   # personal / named email — best
 
 
 def _decode_cloudflare_email(encoded: str) -> str:
@@ -191,17 +214,20 @@ def _decode_cloudflare_email(encoded: str) -> str:
 
 
 def _decode_obfuscated(text: str) -> str:
-    # Standard bracket/paren obfuscation
+    """Decode common email obfuscation patterns."""
+    # Bracket/paren variants
     text = re.sub(r"\s*\[at\]\s*",  "@", text, flags=re.IGNORECASE)
     text = re.sub(r"\s*\(at\)\s*",  "@", text, flags=re.IGNORECASE)
     text = re.sub(r"\s*\{at\}\s*",  "@", text, flags=re.IGNORECASE)
     text = re.sub(r"\s*\[dot\]\s*", ".", text, flags=re.IGNORECASE)
     text = re.sub(r"\s*\(dot\)\s*", ".", text, flags=re.IGNORECASE)
     text = re.sub(r"\s*\{dot\}\s*", ".", text, flags=re.IGNORECASE)
+    # " AT " / " DOT " in uppercase
+    text = re.sub(r"\s+AT\s+",  "@", text)
+    text = re.sub(r"\s+DOT\s+", ".", text)
     # HTML entities
     text = text.replace("&#64;", "@").replace("&#46;", ".")
     text = text.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
-    text = text.replace("@", "@")   # unicode @
     # Spelled-out: "john at domain dot com"
     text = _SPELLED_AT.sub(lambda m: f"{m.group(1)}@{m.group(2)}.{m.group(3)}", text)
     text = _SPELLED_AT2.sub(lambda m: f"{m.group(1)}@{m.group(2)}.{m.group(3)}", text)
@@ -209,11 +235,12 @@ def _decode_obfuscated(text: str) -> str:
 
 
 def _fetch(url: str, timeout: int = 12) -> Optional[str]:
+    """Fetch a URL and return HTML text, or None on failure."""
     try:
         headers = {
             "User-Agent":      random.choice(_USER_AGENTS),
             "Accept":          "text/html,application/xhtml+xml,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Language": "en-AU,en;q=0.9",
             "Accept-Encoding": "gzip, deflate, br",
             "Referer":         "https://www.google.com/",
             "DNT":             "1",
@@ -228,10 +255,46 @@ def _fetch(url: str, timeout: int = 12) -> Optional[str]:
     return None
 
 
+def _url_variants(url: str) -> List[str]:
+    """
+    Return up to 4 URL variants to try before giving up on a site:
+      - https + www   (original if it was already this)
+      - https + bare
+      - http  + www
+      - http  + bare
+    Many small business sites only work on one of these.
+    """
+    try:
+        parsed = urlparse(url)
+        netloc = parsed.netloc.lower()
+        path   = parsed.path or "/"
+
+        if netloc.startswith("www."):
+            bare = netloc[4:]
+            www  = netloc
+        else:
+            bare = netloc
+            www  = "www." + netloc
+
+        variants: List[str] = []
+        for scheme in ("https", "http"):
+            for host in (www, bare):
+                v = f"{scheme}://{host}{path}"
+                if v not in variants:
+                    variants.append(v)
+        return variants
+    except Exception:
+        return [url]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Core extraction from a single HTML page
+# ─────────────────────────────────────────────────────────────────────────────
+
 def _emails_from_soup(soup: BeautifulSoup, html: str) -> List[str]:
     """
     Extract ALL valid contact emails from a parsed page.
-    Returns a deduplicated list ordered: personal > generic > guessed.
+    Returns a deduplicated list ranked: personal > generic.
     """
     raw_found: List[str] = []
 
@@ -240,7 +303,7 @@ def _emails_from_soup(soup: BeautifulSoup, html: str) -> List[str]:
         if c and c not in raw_found:
             raw_found.append(c)
 
-    # ── 1. Cloudflare email protection ──────────────────────────────────────
+    # ── 1. Cloudflare email protection ───────────────────────────────────────
     for el in soup.select(".__cf_email__, [data-cfemail]"):
         encoded = el.get("data-cfemail", "")
         if encoded:
@@ -249,7 +312,6 @@ def _emails_from_soup(soup: BeautifulSoup, html: str) -> List[str]:
         encoded = a.get("data-cfemail", "")
         if encoded:
             _add(_decode_cloudflare_email(encoded))
-    # Also look in raw HTML for cf_email patterns
     for encoded in re.findall(r'data-cfemail="([a-f0-9]+)"', html, re.IGNORECASE):
         _add(_decode_cloudflare_email(encoded))
 
@@ -270,14 +332,10 @@ def _emails_from_soup(soup: BeautifulSoup, html: str) -> List[str]:
                     val = item.get(key, "")
                     if isinstance(val, str) and val:
                         _add(val.replace("mailto:", ""))
-                # contactPoint may be list or dict
                 for cp in (item.get("contactPoint") or []):
                     if isinstance(cp, dict):
                         _add(cp.get("email", "").replace("mailto:", ""))
-                    elif isinstance(cp, str):
-                        _add(cp.replace("mailto:", ""))
-                # author / creator blocks
-                for key in ("author", "creator", "founder", "employee"):
+                for key in ("author", "creator", "founder", "employee", "owner"):
                     person = item.get(key)
                     if isinstance(person, dict):
                         _add(person.get("email", "").replace("mailto:", ""))
@@ -287,11 +345,11 @@ def _emails_from_soup(soup: BeautifulSoup, html: str) -> List[str]:
     # ── 4. Meta tags ─────────────────────────────────────────────────────────
     for meta in soup.find_all("meta"):
         name    = (meta.get("name", "") or meta.get("property", "")).lower()
-        content = meta.get("content", "")
+        content = meta.get("content", "") or ""
         if any(k in name for k in ("email", "contact", "author")) and content:
             _add(content)
 
-    # ── 5. <address> tags ───────────────────────────────────────────────────
+    # ── 5. <address> tags ────────────────────────────────────────────────────
     for addr in soup.find_all("address"):
         text = _decode_obfuscated(addr.get_text(separator=" "))
         for raw in _EMAIL_RE.findall(text):
@@ -299,44 +357,60 @@ def _emails_from_soup(soup: BeautifulSoup, html: str) -> List[str]:
         for a in addr.find_all("a", href=re.compile(r"^mailto:", re.I)):
             _add(a["href"].replace("mailto:", "").split("?")[0].strip())
 
-    # ── 6. <footer> and footer-like divs ─────────────────────────────────────
+    # ── 6. <footer> and footer-like containers ────────────────────────────────
     for footer in soup.find_all(["footer", "div"],
                                  class_=re.compile(
-                                     r"footer|bottom|contact|widget|sidebar",
-                                     re.I)):
+                                     r"footer|bottom|contact|widget|sidebar", re.I)):
         text = _decode_obfuscated(footer.get_text(separator=" "))
         for raw in _EMAIL_RE.findall(text):
             _add(raw)
         for a in footer.find_all("a", href=re.compile(r"^mailto:", re.I)):
             _add(a["href"].replace("mailto:", "").split("?")[0].strip())
 
-    # ── 7. onclick / JavaScript mailto strings ────────────────────────────────
+    # ── 7. Elements with contact-like class or id ─────────────────────────────
+    for tag in soup.find_all(True):
+        cls = " ".join(tag.get("class", []))
+        tid = tag.get("id", "")
+        if _CONTACT_CLASS_RE.search(cls) or _CONTACT_CLASS_RE.search(tid):
+            text = _decode_obfuscated(tag.get_text(separator=" "))
+            for raw in _EMAIL_RE.findall(text):
+                _add(raw)
+            for a in tag.find_all("a", href=re.compile(r"^mailto:", re.I)):
+                _add(a["href"].replace("mailto:", "").split("?")[0].strip())
+
+    # ── 8. onclick / JavaScript mailto strings ────────────────────────────────
     for tag in soup.find_all(onclick=True):
-        onclick = tag.get("onclick", "")
-        for raw in re.findall(r"mailto:([^\s\"'\\?]+)", onclick, re.IGNORECASE):
+        for raw in re.findall(r"mailto:([^\s\"'\\?]+)", tag.get("onclick", ""),
+                               re.IGNORECASE):
             _add(raw)
-    # Also scan inline <script> blocks for mailto strings
     for script in soup.find_all("script"):
         js = script.string or ""
-        for raw in re.findall(r"mailto:([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})",
-                               js, re.IGNORECASE):
+        for raw in re.findall(
+            r"mailto:([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})",
+            js, re.IGNORECASE,
+        ):
             _add(raw)
-        # email strings assigned to variables: var email = "x@y.com"
         for raw in re.findall(
             r"""(?:email|mail|contact)\s*[:=]\s*["']([^"'@\s]+@[^"'\s]+)["']""",
             js, re.IGNORECASE,
         ):
             _add(raw)
 
-    # ── 8. data-email / data-mail / data-contact attributes ──────────────────
+    # ── 9. data-email / data-mail / data-contact attributes ──────────────────
     for tag in soup.find_all(True):
         for attr in ("data-email", "data-mail", "data-contact",
-                     "data-mailto", "data-address"):
+                     "data-mailto", "data-address", "data-to"):
             val = tag.get(attr, "")
             if val and "@" in val:
                 _add(val)
 
-    # ── 9. Emails near contact-keyword context windows (±300 chars) ──────────
+    # ── 10. HTML comments (devs sometimes leave contact emails in comments) ───
+    for comment in soup.find_all(string=lambda text: isinstance(text, Comment)):
+        decoded = _decode_obfuscated(str(comment))
+        for raw in _EMAIL_RE.findall(decoded):
+            _add(raw)
+
+    # ── 11. Emails near contact-keyword context windows ───────────────────────
     page_text    = soup.get_text(separator=" ")
     decoded_text = _decode_obfuscated(page_text)
     for m in _CONTACT_KEYWORDS.finditer(decoded_text):
@@ -346,11 +420,11 @@ def _emails_from_soup(soup: BeautifulSoup, html: str) -> List[str]:
         for raw in _EMAIL_RE.findall(snippet):
             _add(raw)
 
-    # ── 10. Full visible text regex (catches anything missed above) ───────────
+    # ── 12. Full visible text (catches anything missed above) ─────────────────
     for raw in _EMAIL_RE.findall(decoded_text):
         _add(raw)
 
-    # ── 11. Raw HTML source (JS strings, data attrs, comments) ───────────────
+    # ── 13. Raw HTML source (JS strings, data attrs, comments) ───────────────
     decoded_html = _decode_obfuscated(html)
     for raw in _EMAIL_RE.findall(decoded_html):
         _add(raw)
@@ -359,40 +433,65 @@ def _emails_from_soup(soup: BeautifulSoup, html: str) -> List[str]:
     return sorted(raw_found, key=_rank_email)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Contact page discovery helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
 def _discover_contact_links_from_homepage(soup: BeautifulSoup,
                                           base: str) -> List[str]:
     """
     Scan the homepage for internal links that look like contact/about pages.
-    Returns absolute URLs not already in _CONTACT_PATHS.
+    Checks both href and link text, not just href.
     """
     contact_like = re.compile(
         r"(contact|about|reach|team|enquir|connect|hello|email|touch|staff|"
-        r"getintouch|get-in-touch|write|support|find-us|find_us|location)",
+        r"getintouch|get-in-touch|write|support|find-us|find_us|location|"
+        r"privacy|legal|terms|store|faq|our-story)",
         re.IGNORECASE,
     )
     found: List[str] = []
     seen_paths = set(_CONTACT_PATHS)
     for a in soup.find_all("a", href=True):
         href = a["href"].strip()
-        # Skip external, anchors, js, mail links
-        if href.startswith(("mailto:", "tel:", "javascript:", "#", "http")):
+        text = a.get_text(strip=True)
+        if href.startswith(("mailto:", "tel:", "javascript:", "#")):
             continue
-        if contact_like.search(href) or contact_like.search(a.get_text()):
+        if href.startswith("http"):
+            # Only follow if same domain
+            try:
+                if urlparse(href).netloc not in urlparse(base).netloc:
+                    continue
+            except Exception:
+                continue
+        if contact_like.search(href) or contact_like.search(text):
             abs_url = urljoin(base, href)
             path    = urlparse(abs_url).path
             if path not in seen_paths and abs_url not in found:
                 found.append(abs_url)
                 seen_paths.add(path)
-    return found[:8]   # cap to avoid over-crawling
+    return found[:10]
 
 
 def _discover_contact_pages_from_sitemap(base: str) -> List[str]:
+    """Parse robots.txt for sitemap URL, then find contact/about/privacy pages."""
     contact_like = re.compile(
-        r"(contact|about|reach|team|enquir|connect|hello|email|touch|staff)",
+        r"(contact|about|reach|team|enquir|connect|hello|email|touch|staff|"
+        r"privacy|legal|terms)",
         re.IGNORECASE,
     )
     extra: List[str] = []
-    for sitemap_url in [f"{base}/sitemap.xml", f"{base}/sitemap_index.xml"]:
+
+    # First check robots.txt for the sitemap URL
+    sitemap_urls = [f"{base}/sitemap.xml", f"{base}/sitemap_index.xml"]
+    robots = _fetch(f"{base}/robots.txt", timeout=6)
+    if robots:
+        for line in robots.splitlines():
+            if line.lower().startswith("sitemap:"):
+                sm = line.split(":", 1)[1].strip()
+                if sm and sm not in sitemap_urls:
+                    sitemap_urls.insert(0, sm)
+
+    for sitemap_url in sitemap_urls:
         xml = _fetch(sitemap_url, timeout=8)
         if not xml:
             continue
@@ -402,13 +501,8 @@ def _discover_contact_pages_from_sitemap(base: str) -> List[str]:
                 extra.append(loc.strip())
         if extra:
             break
+
     return extra[:8]
-
-
-def _guess_email_from_domain(domain: str) -> Optional[str]:
-    """Last resort: return info@domain. Only called when domain is confirmed live."""
-    candidate = f"info@{domain}"
-    return _clean_email(candidate)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -417,18 +511,20 @@ def _guess_email_from_domain(domain: str) -> Optional[str]:
 
 def find_email_on_website(
     website_url: str,
-    use_guess_fallback: bool = True,
+    use_guess_fallback: bool = False,
 ) -> Tuple[Optional[str], Optional[str]]:
     """
     Visit a business website and return (email, source):
-      source = 'found'  → extracted from real page content
-      source = 'guessed' → info@ pattern, only if domain confirmed live
+      source = 'found'   → extracted from real page content
+      source = 'guessed' → info@ pattern fallback (only if use_guess_fallback=True)
 
     Strategy:
-      1. Fetch homepage → extract emails + discover contact links
-      2. Try standard contact paths
-      3. Try sitemap-discovered contact pages
-      4. If still nothing and domain was live → guess info@domain ONLY
+      1. Try up to 4 URL variants (https/http × www/bare)
+         so sites with no SSL or mismatched www are still reachable
+      2. Fetch homepage → extract emails + discover contact-like links
+      3. Try standard contact paths + homepage-discovered links
+      4. Parse robots.txt → sitemap → find contact/about/privacy pages
+      5. If still nothing and use_guess_fallback=True → info@domain only
     """
     if not website_url:
         return None, None
@@ -438,33 +534,48 @@ def find_email_on_website(
 
     try:
         parsed = urlparse(website_url)
-        base   = f"{parsed.scheme}://{parsed.netloc}"
         domain = parsed.netloc.lstrip("www.")
     except Exception:
         return None, None
 
-    domain_is_live   = False   # True once we get any successful HTTP response
-    extra_from_home:  List[str] = []
+    domain_is_live  = False
+    extra_from_home: List[str] = []
+    working_base    = ""   # first base URL that actually responds
 
-    # ── Phase 1: Homepage ────────────────────────────────────────────────────
-    html = _fetch(website_url)
-    if html:
-        domain_is_live = True
-        soup   = BeautifulSoup(html, "lxml")
-        emails = _emails_from_soup(soup, html)
+    # ── Phase 1: Homepage — try URL variants ──────────────────────────────────
+    homepage_html: Optional[str] = None
+    for variant in _url_variants(website_url):
+        homepage_html = _fetch(variant)
+        if homepage_html:
+            domain_is_live = True
+            try:
+                p = urlparse(variant)
+                working_base = f"{p.scheme}://{p.netloc}"
+            except Exception:
+                working_base = variant
+            break
+
+    if homepage_html:
+        soup   = BeautifulSoup(homepage_html, "lxml")
+        emails = _emails_from_soup(soup, homepage_html)
         if emails:
             return emails[0], "found"
+        extra_from_home = _discover_contact_links_from_homepage(soup, working_base)
 
-        # Discover contact links from the homepage nav/footer
-        extra_from_home = _discover_contact_links_from_homepage(soup, base)
+    # ── Phase 2: Standard contact paths + homepage-discovered links ───────────
+    if not working_base:
+        # Domain never responded — skip further fetching
+        return None, None
 
-    # ── Phase 2: Standard contact paths + homepage-discovered links ──────────
-    standard_pages = [urljoin(base, p) for p in _CONTACT_PATHS]
-    # Put homepage-discovered links first (higher signal)
-    pages_to_try = extra_from_home + [p for p in standard_pages
-                                       if p not in extra_from_home]
+    standard_pages = [urljoin(working_base, p) for p in _CONTACT_PATHS]
+    pages_to_try   = extra_from_home + [p for p in standard_pages
+                                         if p not in extra_from_home]
 
     seen: set = {website_url}
+    # Add all variant homepages to seen so we don't refetch them
+    for v in _url_variants(website_url):
+        seen.add(v)
+
     for url in pages_to_try:
         if url in seen:
             continue
@@ -480,11 +591,11 @@ def find_email_on_website(
         if emails:
             return emails[0], "found"
 
-        time.sleep(random.uniform(0.2, 0.5))
+        time.sleep(random.uniform(0.15, 0.4))
 
-    # ── Phase 3: Sitemap discovery ───────────────────────────────────────────
+    # ── Phase 3: Sitemap discovery ────────────────────────────────────────────
     try:
-        sitemap_pages = _discover_contact_pages_from_sitemap(base)
+        sitemap_pages = _discover_contact_pages_from_sitemap(working_base)
         for url in sitemap_pages:
             if url in seen:
                 continue
@@ -497,15 +608,14 @@ def find_email_on_website(
             emails = _emails_from_soup(soup, html)
             if emails:
                 return emails[0], "found"
-            time.sleep(random.uniform(0.2, 0.4))
+            time.sleep(random.uniform(0.15, 0.35))
     except Exception:
         pass
 
-    # ── Phase 4: Guess ONLY if domain was confirmed live ─────────────────────
-    # If the domain never responded, guessing is pointless (will 100% bounce).
+    # ── Phase 4: Guess fallback (disabled by default) ─────────────────────────
     if use_guess_fallback and domain_is_live:
-        guessed = _guess_email_from_domain(domain)
-        if guessed:
-            return guessed, "guessed"
+        candidate = _clean_email(f"info@{domain}")
+        if candidate:
+            return candidate, "guessed"
 
     return None, None

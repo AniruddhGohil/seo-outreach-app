@@ -1039,7 +1039,9 @@ with tab_find:
                 # ── Email discovery ───────────────────────────────────────────
                 if auto_email and biz.get("website"):
                     log(f"🔗  {biz['business_name']} → {biz['website']}")
-                    email, email_source = find_email_on_website(biz["website"])
+                    email, email_source = find_email_on_website(
+                        biz["website"], use_guess_fallback=False
+                    )
                     if email:
                         # ── Email-level dedup: has this address been sent before? ──
                         existing = get_lead_by_email(email)
