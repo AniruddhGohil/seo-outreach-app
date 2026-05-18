@@ -27,12 +27,13 @@ from database import (
 from email_finder import find_email_on_website
 import brevo_sender
 from email_sender import send_email as _smtp_send_one
-from scraper import COUNTRY_SCRAPERS, find_businesses
+from scraper import COUNTRY_SCRAPERS, find_businesses, scrape_ecommerce
 from templates import (
     EMAIL_TEMPLATE_HTML, SUBJECT_LINES,
     TEMPLATE_OPTIONS, FOLLOWUP_OPTIONS,
     build_html, build_text,
     get_random_subject, get_followup_subject,
+    DEFAULT_PORTFOLIO_URL, DEFAULT_CASE_STUDY,
 )
 
 
@@ -49,6 +50,8 @@ def _background_send_worker(
     template: str = "short",
     brevo_key: str = "",
     is_followup: int = 0,     # 0 = first touch, 1 = follow-up 1, 2 = follow-up 2
+    portfolio_url: str = "",
+    case_study: str = "",
 ):
     """
     Daemon thread: sends one email per lead_id via Brevo (preferred) or Gmail SMTP.
@@ -76,10 +79,12 @@ def _background_send_worker(
 
         # ── Build email content from template ─────────────────────────────
         tpl_key = f"followup{is_followup}" if is_followup else template
-        html_body = build_html(tpl_key, biz_name, sender_name, sender_email)
-        text_body = build_text(tpl_key, biz_name, sender_name, sender_email)
+        html_body = build_html(tpl_key, biz_name, sender_name, sender_email,
+                               portfolio_url=portfolio_url, case_study=case_study)
+        text_body = build_text(tpl_key, biz_name, sender_name, sender_email,
+                               portfolio_url=portfolio_url, case_study=case_study)
         subject   = (get_followup_subject(biz_name, is_followup)
-                     if is_followup else get_random_subject(biz_name))
+                     if is_followup else get_random_subject(biz_name, tpl_key))
 
         # ── Send via Brevo or Gmail SMTP ──────────────────────────────────
         message_id = ""
@@ -158,7 +163,8 @@ def _background_send_worker(
 def _queue_and_send(lead_ids: list, sender_email: str,
                     app_password: str, sender_name: str,
                     delay_secs: int, template: str = "short",
-                    brevo_key: str = "", is_followup: int = 0) -> bool:
+                    brevo_key: str = "", is_followup: int = 0,
+                    portfolio_url: str = "", case_study: str = "") -> bool:
     """
     Mark leads as 'queued' in the DB, then start the background thread.
     Returns False if a send is already running.
@@ -188,7 +194,8 @@ def _queue_and_send(lead_ids: list, sender_email: str,
     t = threading.Thread(
         target=_background_send_worker,
         args=(lead_ids, sender_email, app_password, sender_name,
-              delay_secs, template, brevo_key, is_followup),
+              delay_secs, template, brevo_key, is_followup,
+              portfolio_url, case_study),
         daemon=True,
         name="email-sender",
     )
@@ -781,11 +788,11 @@ with st.sidebar:
         brevo_key  = st.text_input("Brevo API Key", value=_def_brevo,
                                    type="password", key="s_brevo",
                                    help="app.brevo.com → Settings → API Keys (free)")
-        _def_brevo_name = st.secrets.get("brevo_sender_name", "Aaron Pearson")
+        _def_brevo_name = st.secrets.get("brevo_sender_name", "Aniruddh Gohil")
         brevo_sender_name = st.text_input(
             "Sender name (business emails)",
             value=_def_brevo_name,
-            placeholder="Aaron Pearson",
+            placeholder="Aniruddh Gohil",
             key="s_brevo_name",
             help="Name shown to recipients in their inbox when sent via Brevo",
         )
@@ -811,6 +818,27 @@ with st.sidebar:
                 "Rate Limiting</div>", unsafe_allow_html=True)
     delay_sec = st.slider("Delay between emails (s)", 30, 180, 60)
     st.caption("60 s is safe with Brevo (dedicated infrastructure). Gmail SMTP: use 90s+.")
+
+    st.divider()
+
+    # ── Social proof (appears in every email sent) ────────────────────────
+    st.markdown("<div style='font-size:11px;font-weight:700;color:#475569;"
+                "text-transform:uppercase;letter-spacing:0.8px;margin-bottom:10px;'>"
+                "Email Social Proof</div>", unsafe_allow_html=True)
+    portfolio_url = st.text_input(
+        "Portfolio URL",
+        value=st.secrets.get("portfolio_url", DEFAULT_PORTFOLIO_URL),
+        placeholder="https://yoursite.com",
+        key="s_portfolio",
+        help="Linked as 'View my work →' in every email signature",
+    )
+    case_study = st.text_input(
+        "Case study line (1 sentence)",
+        value=st.secrets.get("case_study", DEFAULT_CASE_STUDY),
+        placeholder=DEFAULT_CASE_STUDY,
+        key="s_case_study",
+        help="Shown as 'Recent result:' in all templates. Edit to match your best result.",
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1174,6 +1202,124 @@ skin clinic, EN1 Enfield, United Kingdom"""
                     f"from {_b_total_biz} businesses across {len(_b_lines)} searches. "
                     f"Go to **Send Emails** to start outreach."
                 )
+
+    # ── E-commerce Store Finder ───────────────────────────────────────────────
+    with st.expander("🛒 E-commerce Store Finder — find online shops to pitch", expanded=False):
+        st.markdown(
+            "<p style='font-size:13px;color:#6b7280;margin:0 0 14px;'>"
+            "Searches Google for <b>independent online stores</b> selling a specific product "
+            "or in a specific niche. Filters out Amazon, eBay, Etsy and major retailers "
+            "automatically. Uses your Serper API key — same one as Google Maps search.</p>",
+            unsafe_allow_html=True,
+        )
+
+        # Quick-fill niche templates
+        st.markdown("<p style='font-size:11px;font-weight:600;color:#9ca3af;"
+                    "text-transform:uppercase;letter-spacing:0.5px;margin:0 0 6px;'>"
+                    "Niche ideas</p>", unsafe_allow_html=True)
+        _ec1, _ec2, _ec3, _ec4 = st.columns(4)
+        _ecomm_niches = {
+            "🧴 Skincare": "natural skincare products",
+            "🏋️ Fitness": "fitness supplements",
+            "🐾 Pet": "pet accessories",
+            "👗 Fashion": "women's fashion boutique",
+            "🍵 Food": "artisan food gifts",
+            "🧸 Baby": "baby products",
+            "🪴 Home": "home décor",
+            "💍 Jewellery": "handmade jewellery",
+        }
+        _niche_cols = [_ec1, _ec2, _ec3, _ec4] * 2
+        for (_label, _niche_val), _col in zip(_ecomm_niches.items(), _niche_cols):
+            with _col:
+                if st.button(_label, use_container_width=True, key=f"ec_{_label}"):
+                    st.session_state["ec_niche"] = _niche_val
+
+        _ecol1, _ecol2 = st.columns([3, 1])
+        with _ecol1:
+            ec_niche = st.text_input(
+                "Product niche or keyword",
+                value=st.session_state.get("ec_niche", ""),
+                placeholder="e.g. natural skincare · fitness supplements · artisan coffee",
+                key="ec_niche_input",
+            )
+        with _ecol2:
+            ec_country = st.selectbox(
+                "Country", ["United Kingdom", "Australia", "USA", "New Zealand", "UAE"],
+                key="ec_country",
+            )
+
+        _ecol3, _ecol4 = st.columns([2, 1])
+        with _ecol3:
+            ec_max = st.slider("Max stores to find", 10, 60, 30, key="ec_max",
+                               help="Each store website is then visited to extract a contact email.")
+        with _ecol4:
+            ec_email = st.toggle("Auto-extract emails", value=True, key="ec_email")
+
+        _serper_for_ec = st.session_state.get("s_serper","") or st.secrets.get("serper_key","")
+
+        if not _serper_for_ec:
+            st.warning("⚠️ Add your Serper API key in the sidebar to use e-commerce search.")
+        elif st.button("🛒 Find E-commerce Stores", type="primary",
+                       use_container_width=True, key="btn_ecomm"):
+            if not ec_niche.strip():
+                st.error("Enter a product niche or keyword.")
+            else:
+                _ec_prog = st.progress(0, text="Searching Google for online stores…")
+                _ec_log  = st.empty()
+                _ec_lines: list = []
+
+                def _eclog(msg):
+                    _ec_lines.append(msg)
+                    _ec_log.markdown("```\n" + "\n".join(_ec_lines[-20:]) + "\n```")
+
+                _ec_sid   = save_search(ec_niche, "web", ec_country)
+                _ec_stores = scrape_ecommerce(
+                    niche=ec_niche.strip(),
+                    country=ec_country,
+                    api_key=_serper_for_ec,
+                    max_results=ec_max,
+                    log_cb=_eclog,
+                )
+                _ec_prog.progress(50, text=f"Found {len(_ec_stores)} stores — extracting emails…")
+
+                _ec_new = 0
+                for _idx, _store in enumerate(_ec_stores):
+                    if is_duplicate_lead(website=_store.get("website", "")):
+                        continue
+                    if ec_email and _store.get("website"):
+                        _em, _es = find_email_on_website(
+                            _store["website"], use_guess_fallback=False
+                        )
+                        _store["email"]        = _em
+                        _store["email_source"] = _es
+                        if not _em:
+                            _store["status"] = "no_email"
+                        _eclog(
+                            f"{'📧' if _em else '—'}  {_store['business_name'][:40]}  "
+                            f"{'→ ' + _em if _em else '(no email)'}"
+                        )
+                    else:
+                        _store["email"]        = None
+                        _store["email_source"] = None
+                        _store["status"]       = "no_email"
+
+                    if insert_lead(_store):
+                        _ec_new += 1
+
+                    _ec_prog.progress(
+                        50 + int((_idx + 1) / max(len(_ec_stores), 1) * 50),
+                        text=f"Processing {_idx+1}/{len(_ec_stores)} stores…",
+                    )
+
+                update_search_result(_ec_sid, len(_ec_stores), _ec_new)
+                _ec_prog.progress(100, text="Done!")
+                st.success(
+                    f"✅ **{_ec_new} new e-commerce leads** saved from {len(_ec_stores)} "
+                    f"stores found. Use the **E-commerce** email template when sending — "
+                    f"it references your +238% revenue case study directly."
+                )
+
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
     with st.container():
         c1, c2, c3 = st.columns([2, 2, 1])
@@ -1749,11 +1895,14 @@ with tab_send:
                     type="primary", use_container_width=True,
                 ):
                     ids = df_confirmed.head(max_send)["id"].astype(int).tolist()
-                    _eff_name = (st.session_state.get("s_brevo_name","") or "Aaron Pearson") \
+                    _eff_name = (st.session_state.get("s_brevo_name","") or "Aniruddh Gohil") \
                                 if _brevo_key_send else sender_name
+                    _port = st.session_state.get("s_portfolio", DEFAULT_PORTFOLIO_URL)
+                    _cs   = st.session_state.get("s_case_study", DEFAULT_CASE_STUDY)
                     started = _queue_and_send(
                         ids, sender_email, app_password, _eff_name,
                         delay_sec, tpl_choice, _brevo_key_send,
+                        portfolio_url=_port, case_study=_cs,
                     )
                     if started:
                         st.success(
@@ -1815,11 +1964,13 @@ with tab_followup:
             if st.button(f"📤 Send {_fu1_max} Follow-up 1 emails {_fu_method}",
                          type="primary", use_container_width=True, key="btn_fu1"):
                 ids = fu1.head(_fu1_max)["id"].astype(int).tolist()
-                _eff_name_fu1 = (st.session_state.get("s_brevo_name","") or "Aaron Pearson") \
+                _eff_name_fu1 = (st.session_state.get("s_brevo_name","") or "Aniruddh Gohil") \
                                 if _brevo_fu else sender_name
                 started = _queue_and_send(
                     ids, sender_email, app_password, _eff_name_fu1,
                     delay_sec, "followup1", _brevo_fu, is_followup=1,
+                    portfolio_url=st.session_state.get("s_portfolio", DEFAULT_PORTFOLIO_URL),
+                    case_study=st.session_state.get("s_case_study", DEFAULT_CASE_STUDY),
                 )
                 if started:
                     st.success(f"✅ {_fu1_max} Follow-up 1 emails queued!")
@@ -1852,11 +2003,13 @@ with tab_followup:
             if st.button(f"📤 Send {_fu2_max} Follow-up 2 emails {_fu_method}",
                          type="primary", use_container_width=True, key="btn_fu2"):
                 ids = fu2.head(_fu2_max)["id"].astype(int).tolist()
-                _eff_name_fu2 = (st.session_state.get("s_brevo_name","") or "Aaron Pearson") \
+                _eff_name_fu2 = (st.session_state.get("s_brevo_name","") or "Aniruddh Gohil") \
                                 if _brevo_fu else sender_name
                 started = _queue_and_send(
                     ids, sender_email, app_password, _eff_name_fu2,
                     delay_sec, "followup2", _brevo_fu, is_followup=2,
+                    portfolio_url=st.session_state.get("s_portfolio", DEFAULT_PORTFOLIO_URL),
+                    case_study=st.session_state.get("s_case_study", DEFAULT_CASE_STUDY),
                 )
                 if started:
                     st.success(f"✅ {_fu2_max} Follow-up 2 emails queued!")

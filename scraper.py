@@ -751,6 +751,144 @@ def scrape_google_places(
     return results
 
 
+# ── E-commerce store discovery  (Serper web search, not Maps) ─────────────
+
+# Big retailers / marketplaces to skip — we want independent stores only
+_ECOMM_SKIP = {
+    "amazon", "ebay", "etsy", "asos", "boohoo", "prettylittlething",
+    "argos", "johnlewis", "currys", "boots", "next", "primark",
+    "tesco", "sainsburys", "walmart", "target", "wayfair", "ikea",
+    "aliexpress", "alibaba", "wish", "shein", "zalando", "notonthehighstreet",
+    "notinthehighstreet", "google", "facebook", "instagram", "pinterest",
+    "reddit", "twitter", "youtube", "linkedin", "trustpilot", "yelp",
+    "tripadvisor", "shopify", "woocommerce", "bigcommerce", "squarespace",
+    "wix", "wordpress", "medium", "substack",
+}
+
+
+def scrape_ecommerce(
+    niche: str,
+    country: str,
+    api_key: str,
+    max_results: int = 40,
+    log_cb: Optional[Callable] = None,
+) -> List[Dict]:
+    """
+    Find independent e-commerce stores via Serper web search (organic Google).
+
+    Uses the /search endpoint (not /maps) to find online stores selling
+    products in a given niche. Returns stores with their homepage URL so
+    the email finder can extract a contact email.
+
+    Filters out major marketplaces and retailers automatically.
+    """
+    _country_qualifier = {
+        "United Kingdom": "UK site:.co.uk OR site:.com",
+        "Australia":      "Australia site:.com.au OR site:.com",
+        "USA":            "USA site:.com",
+        "New Zealand":    "New Zealand site:.co.nz OR site:.com",
+        "UAE":            "UAE site:.ae OR site:.com",
+    }.get(country, country)
+
+    queries = [
+        f'"{niche}" online store {_country_qualifier}',
+        f'buy "{niche}" online {country}',
+        f'"{niche}" shop {country} -amazon -ebay -etsy',
+        f'"{niche}" ecommerce {country}',
+    ]
+
+    results: List[Dict] = []
+    seen_domains: set = set()
+
+    headers = {
+        "X-API-KEY":    api_key,
+        "Content-Type": "application/json",
+    }
+
+    for query in queries:
+        if len(results) >= max_results:
+            break
+
+        if log_cb:
+            log_cb(f"  🔍 Web search: {query[:60]}…")
+
+        try:
+            r = requests.post(
+                "https://google.serper.dev/search",
+                headers=headers,
+                json={"q": query, "num": 10, "gl": "uk"},
+                timeout=15,
+            )
+            if r.status_code == 401:
+                if log_cb:
+                    log_cb("  ❌ Serper: invalid API key")
+                break
+            if r.status_code != 200:
+                if log_cb:
+                    log_cb(f"  ⚠️ Serper HTTP {r.status_code}")
+                continue
+
+            organic = r.json().get("organic", [])
+            added = 0
+
+            for item in organic:
+                link  = item.get("link", "")
+                title = item.get("title", "")
+                if not link:
+                    continue
+
+                try:
+                    parsed     = urlparse(link)
+                    base_url   = f"{parsed.scheme}://{parsed.netloc}"
+                    domain_key = parsed.netloc.lstrip("www.").lower()
+                    root_name  = domain_key.split(".")[0]
+                except Exception:
+                    continue
+
+                # Skip major retailers
+                if any(skip in root_name for skip in _ECOMM_SKIP):
+                    continue
+                if base_url in seen_domains:
+                    continue
+
+                seen_domains.add(base_url)
+
+                # Clean up business name from page title
+                biz_name = title
+                for sep in ["|", "–", "—", "-", ":", "·"]:
+                    biz_name = biz_name.split(sep)[0].strip()
+
+                results.append({
+                    "business_name": biz_name or domain_key,
+                    "website":       base_url,
+                    "email":         "",
+                    "phone":         "",
+                    "address":       "",
+                    "city":          country,
+                    "country":       country,
+                    "keyword":       niche,
+                    "source":        "Web Search (Ecommerce)",
+                })
+                added += 1
+
+                if len(results) >= max_results:
+                    break
+
+            if log_cb:
+                log_cb(f"    → {added} new stores found")
+
+        except Exception as exc:
+            if log_cb:
+                log_cb(f"  ⚠️ Error: {exc}")
+
+        time.sleep(random.uniform(0.8, 1.5))   # polite delay between queries
+
+    if log_cb:
+        log_cb(f"  ✅ E-commerce total: {len(results)} independent stores")
+
+    return results
+
+
 # ---------------------------------------------------------------------------
 # Public router
 # ---------------------------------------------------------------------------
