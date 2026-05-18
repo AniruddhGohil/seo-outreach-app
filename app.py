@@ -717,7 +717,7 @@ with st.sidebar:
                 "Gmail SMTP</div>", unsafe_allow_html=True)
 
     _def_email = st.secrets.get("smtp_email",    "")
-    _def_name  = st.secrets.get("smtp_name",     "Aaron Pearson")
+    _def_name  = st.secrets.get("smtp_name",     "")
     _def_pass  = st.secrets.get("smtp_password", "")
 
     sender_email = st.text_input("From address",   value=_def_email, placeholder="you@gmail.com", key="s_email")
@@ -757,6 +757,14 @@ with st.sidebar:
         brevo_key  = st.text_input("Brevo API Key", value=_def_brevo,
                                    type="password", key="s_brevo",
                                    help="app.brevo.com → Settings → API Keys (free)")
+        _def_brevo_name = st.secrets.get("brevo_sender_name", "Aaron Pearson")
+        brevo_sender_name = st.text_input(
+            "Sender name (business emails)",
+            value=_def_brevo_name,
+            placeholder="Aaron Pearson",
+            key="s_brevo_name",
+            help="Name shown to recipients in their inbox when sent via Brevo",
+        )
         if brevo_key:
             _acct = brevo_sender.validate_key(brevo_key)
             if _acct:
@@ -1421,8 +1429,10 @@ with tab_send:
                     type="primary", use_container_width=True,
                 ):
                     ids = df_confirmed.head(max_send)["id"].astype(int).tolist()
+                    _eff_name = (st.session_state.get("s_brevo_name","") or "Aaron Pearson") \
+                                if _brevo_key_send else sender_name
                     started = _queue_and_send(
-                        ids, sender_email, app_password, sender_name,
+                        ids, sender_email, app_password, _eff_name,
                         delay_sec, tpl_choice, _brevo_key_send,
                     )
                     if started:
@@ -1485,8 +1495,10 @@ with tab_followup:
             if st.button(f"📤 Send {_fu1_max} Follow-up 1 emails {_fu_method}",
                          type="primary", use_container_width=True, key="btn_fu1"):
                 ids = fu1.head(_fu1_max)["id"].astype(int).tolist()
+                _eff_name_fu1 = (st.session_state.get("s_brevo_name","") or "Aaron Pearson") \
+                                if _brevo_fu else sender_name
                 started = _queue_and_send(
-                    ids, sender_email, app_password, sender_name,
+                    ids, sender_email, app_password, _eff_name_fu1,
                     delay_sec, "followup1", _brevo_fu, is_followup=1,
                 )
                 if started:
@@ -1520,8 +1532,10 @@ with tab_followup:
             if st.button(f"📤 Send {_fu2_max} Follow-up 2 emails {_fu_method}",
                          type="primary", use_container_width=True, key="btn_fu2"):
                 ids = fu2.head(_fu2_max)["id"].astype(int).tolist()
+                _eff_name_fu2 = (st.session_state.get("s_brevo_name","") or "Aaron Pearson") \
+                                if _brevo_fu else sender_name
                 started = _queue_and_send(
-                    ids, sender_email, app_password, sender_name,
+                    ids, sender_email, app_password, _eff_name_fu2,
                     delay_sec, "followup2", _brevo_fu, is_followup=2,
                 )
                 if started:
