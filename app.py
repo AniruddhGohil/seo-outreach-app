@@ -675,26 +675,6 @@ with st.sidebar:
             unsafe_allow_html=True,
         )
 
-    # ── Deliverability tip (custom domain reminder) ───────────────────────
-    _brevo_configured = bool(
-        st.secrets.get("brevo_key", "") or st.session_state.get("s_brevo", "")
-    )
-    _sender_is_gmail = (st.session_state.get("s_email", "") or
-                        st.secrets.get("smtp_email", "")).endswith("@gmail.com")
-    if _brevo_configured and _sender_is_gmail:
-        st.markdown(
-            "<div style='background:#1c1917;border:1px solid #44403c;"
-            "border-radius:8px;padding:8px 12px;margin:6px 0;'>"
-            "<div style='font-size:10px;font-weight:700;color:#fbbf24;"
-            "letter-spacing:0.4px;'>📬 DELIVERABILITY TIP</div>"
-            "<div style='font-size:10px;color:#d6d3d1;margin-top:3px;line-height:1.5;'>"
-            "Using gmail.com via Brevo prevents DKIM signing — "
-            "your score is capped ~6/10. Get a cheap custom domain "
-            "(e.g. aaronpearson.co.uk ≈ £10/yr) and verify it in "
-            "Brevo → Senders → Domains to reach 9–10/10.</div></div>",
-            unsafe_allow_html=True,
-        )
-
     # ── Background send indicator ─────────────────────────────────────────
     with bg_state.LOCK:
         _snap = dict(bg_state.STATE)

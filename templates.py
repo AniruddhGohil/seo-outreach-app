@@ -278,10 +278,8 @@ with how fast search is changing in 2025.</p>
   results (Siri, Alexa) so customers choose you before clicking anywhere.</p>
 </div>
 
-<div class="price">
-  <div class="amt">From £500<span style="font-size:16px;font-weight:400;
-       color:#94a3b8">&nbsp;/ month</span></div>
-  <p class="note">Tailored packages · No lock-in contracts · Results in 60–90 days</p>
+<div class="highlight">
+  📦 Tailored packages · No lock-in contracts · Measurable results in 60–90 days
 </div>
 
 <p>I would like to offer <strong>{business_name}</strong> a complimentary
@@ -318,7 +316,7 @@ Google Gemini and Perplexity. Most competitors are not there yet.
 AEO (Answer Engine Optimisation) – Appear in Featured Snippets and
 voice search so customers choose you first.
 
-Packages from £500 per month — tailored to your goals, no lock-in contracts.
+Tailored packages, no lock-in contracts — pricing shared after a quick chat.
 
 I would like to offer {business_name} a complimentary visibility audit — an
 honest look at where you stand and what we can improve. No commitment needed.
