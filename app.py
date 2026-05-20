@@ -1960,11 +1960,9 @@ with tab_send:
         # Sendable pool = confirmed ("found") + inferred — both are real addresses.
         # Guessed (info@…) stays separate and is never auto-queued.
         import pandas as _pd2
-        df_sendable = _pd2.concat(
-            [df for df in [df_confirmed, df_inferred] if not df.empty],
-            ignore_index=True,
-        )
-        sendable_ct = len(df_sendable)
+        _send_frames = [df for df in [df_confirmed, df_inferred] if not df.empty]
+        df_sendable  = _pd2.concat(_send_frames, ignore_index=True) if _send_frames else _pd2.DataFrame()
+        sendable_ct  = len(df_sendable)
 
         if sendable_ct == 0:
             if not _is_running:
