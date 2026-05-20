@@ -1272,30 +1272,85 @@ skin clinic, EN1 Enfield, United Kingdom"""
                 _gplaces_key = st.session_state.get("s_gplaces","")or st.secrets.get("google_places_key","")
                 _yelp_key    = st.session_state.get("s_yelp","")   or st.secrets.get("yelp_api_key","")
 
-                _batch_prog  = st.progress(0, text="Starting batch…")
-                _batch_log   = st.empty()
+                _b_total     = len(_b_lines)
+                _b_total_new = 0
+                _b_total_biz = 0
+
+                # ── Live status banner (replaces itself each search) ──────
+                _status_box = st.empty()
+                _batch_prog = st.progress(0)
+                _batch_log  = st.empty()
                 _batch_lines: list = []
 
                 def _blog(msg):
                     _batch_lines.append(msg)
-                    _batch_log.markdown("```\n" + "\n".join(_batch_lines[-25:]) + "\n```")
+                    _batch_log.markdown(
+                        "<div style='background:#0f172a;border-radius:10px;"
+                        "padding:14px 18px;font-family:monospace;font-size:12px;"
+                        "color:#94a3b8;max-height:220px;overflow-y:auto;line-height:1.7;'>"
+                        + "<br>".join(_batch_lines[-30:])
+                        + "</div>",
+                        unsafe_allow_html=True,
+                    )
 
-                _b_total_new = 0
-                _b_total_biz = 0
+                def _update_status(num, kw="", loc="", done=False):
+                    if done:
+                        _status_box.markdown(
+                            f"<div style='background:#052e16;border:2px solid #166534;"
+                            f"border-radius:12px;padding:18px 22px;margin-bottom:8px;'>"
+                            f"<div style='font-size:12px;font-weight:700;color:#4ade80;"
+                            f"letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;'>"
+                            f"✅ Batch Complete</div>"
+                            f"<div style='display:flex;gap:32px;flex-wrap:wrap;'>"
+                            f"<div><div style='font-size:28px;font-weight:800;color:#4ade80;"
+                            f"line-height:1;'>{_b_total_new}</div>"
+                            f"<div style='font-size:11px;color:#86efac;margin-top:2px;'>New leads saved</div></div>"
+                            f"<div><div style='font-size:28px;font-weight:800;color:#4ade80;"
+                            f"line-height:1;'>{_b_total_biz}</div>"
+                            f"<div style='font-size:11px;color:#86efac;margin-top:2px;'>Businesses scanned</div></div>"
+                            f"<div><div style='font-size:28px;font-weight:800;color:#4ade80;"
+                            f"line-height:1;'>{_b_total}</div>"
+                            f"<div style='font-size:11px;color:#86efac;margin-top:2px;'>Searches done</div></div>"
+                            f"</div></div>",
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        pct = int((num - 1) / _b_total * 100)
+                        _status_box.markdown(
+                            f"<div style='background:#1e1b4b;border:2px solid #4338ca;"
+                            f"border-radius:12px;padding:18px 22px;margin-bottom:8px;'>"
+                            f"<div style='font-size:12px;font-weight:700;color:#a5b4fc;"
+                            f"letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;'>"
+                            f"🔄 Running…</div>"
+                            f"<div style='font-size:15px;font-weight:600;color:#e0e7ff;"
+                            f"margin-bottom:12px;'>Search {num} of {_b_total} — "
+                            f"<span style='color:#c7d2fe;font-weight:400;'>{kw} in {loc}</span></div>"
+                            f"<div style='display:flex;gap:32px;flex-wrap:wrap;'>"
+                            f"<div><div style='font-size:24px;font-weight:800;color:#a5b4fc;"
+                            f"line-height:1;'>{_b_total_new}</div>"
+                            f"<div style='font-size:11px;color:#818cf8;margin-top:2px;'>Leads so far</div></div>"
+                            f"<div><div style='font-size:24px;font-weight:800;color:#a5b4fc;"
+                            f"line-height:1;'>{_b_total_biz}</div>"
+                            f"<div style='font-size:11px;color:#818cf8;margin-top:2px;'>Businesses scanned</div></div>"
+                            f"<div><div style='font-size:24px;font-weight:800;color:#a5b4fc;"
+                            f"line-height:1;'>{pct}%</div>"
+                            f"<div style='font-size:11px;color:#818cf8;margin-top:2px;'>Complete</div></div>"
+                            f"</div></div>",
+                            unsafe_allow_html=True,
+                        )
 
                 for _bi, _line in enumerate(_b_lines):
                     parts = [p.strip() for p in _line.split(",")]
                     if len(parts) < 2:
-                        _blog(f"⚠️  Skipping invalid line: {_line}")
+                        _blog(f"⚠️  Skipping: {_line}")
                         continue
                     _b_kw   = parts[0]
                     _b_loc  = parts[1]
                     _b_ctry = parts[2] if len(parts) >= 3 else "United Kingdom"
 
-                    _pct = int(_bi / len(_b_lines) * 100)
-                    _batch_prog.progress(_pct,
-                        text=f"Search {_bi+1}/{len(_b_lines)}: {_b_kw} in {_b_loc}")
-                    _blog(f"\n🔍 [{_bi+1}/{len(_b_lines)}] {_b_kw} · {_b_loc}, {_b_ctry}")
+                    _batch_prog.progress(int(_bi / _b_total * 100))
+                    _update_status(_bi + 1, _b_kw, _b_loc)
+                    _blog(f"🔍 [{_bi+1}/{_b_total}] {_b_kw} · {_b_loc}, {_b_ctry}")
 
                     _b_sid = save_search(_b_kw, _b_loc, _b_ctry)
                     _b_bizs = find_businesses(
@@ -1333,10 +1388,11 @@ skin clinic, EN1 Enfield, United Kingdom"""
                     _b_total_new += _b_new
                     _b_total_biz += len(_b_bizs)
 
-                _batch_prog.progress(100, text="Batch complete!")
+                _batch_prog.progress(100)
+                _update_status(0, done=True)
                 st.success(
                     f"✅ Batch done — **{_b_total_new} new leads** saved "
-                    f"from {_b_total_biz} businesses across {len(_b_lines)} searches. "
+                    f"from {_b_total_biz} businesses across {_b_total} searches. "
                     f"Go to **Send Emails** to start outreach."
                 )
 
