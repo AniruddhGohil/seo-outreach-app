@@ -458,41 +458,61 @@ html, body, [class*="css"] {
 
 /* ── Tabs ── */
 .stTabs [data-baseweb="tab-list"] {
-    gap: 2px; background: white;
-    border: 1px solid #e2e8f0; border-radius: 10px;
-    padding: 4px; margin-bottom: 24px;
+    gap: 0;
+    background: white;
+    border: none;
+    border-bottom: 2px solid #e2e8f0;
+    border-radius: 0;
+    padding: 0;
+    margin-bottom: 28px;
 }
 .stTabs [data-baseweb="tab"] {
-    border-radius: 7px !important; padding: 8px 18px !important;
-    font-weight: 600 !important; font-size: 13px !important;
-    color: #64748b !important; background: transparent !important;
-    border: none !important; transition: all .12s !important;
+    border-radius: 0 !important;
+    padding: 12px 22px !important;
+    font-weight: 600 !important;
+    font-size: 13px !important;
+    color: #64748b !important;
+    background: transparent !important;
+    border: none !important;
+    border-bottom: 2px solid transparent !important;
+    margin-bottom: -2px !important;
+    transition: color .15s, border-color .15s !important;
+}
+.stTabs [data-baseweb="tab"]:hover {
+    color: #4f46e5 !important;
 }
 .stTabs [aria-selected="true"] {
-    color: #0f172a !important; background: #f1f5f9 !important;
-    box-shadow: 0 1px 3px rgba(0,0,0,.08) !important;
+    color: #4f46e5 !important;
+    background: transparent !important;
+    border-bottom-color: #4f46e5 !important;
+    box-shadow: none !important;
 }
 
 /* ── Primary button ── */
 .stButton > button[kind="primary"] {
-    background: #4f46e5 !important; border: none !important;
+    background: linear-gradient(135deg, #4f46e5, #6366f1) !important;
+    border: none !important;
     border-radius: 8px !important; font-weight: 600 !important;
     font-size: 14px !important; color: white !important;
     padding: 10px 22px !important; letter-spacing: -0.1px !important;
-    transition: all .12s !important; box-shadow: 0 1px 3px rgba(79,70,229,.3) !important;
+    transition: all .15s !important;
+    box-shadow: 0 2px 6px rgba(79,70,229,.35), inset 0 1px 0 rgba(255,255,255,.15) !important;
 }
 .stButton > button[kind="primary"]:hover {
-    background: #4338ca !important; box-shadow: 0 4px 12px rgba(79,70,229,.35) !important;
+    background: linear-gradient(135deg, #4338ca, #4f46e5) !important;
+    box-shadow: 0 6px 16px rgba(79,70,229,.4) !important;
     transform: translateY(-1px) !important;
 }
 .stButton > button[kind="secondary"] {
     background: white !important; border: 1px solid #e2e8f0 !important;
     border-radius: 8px !important; font-weight: 500 !important;
     font-size: 13px !important; color: #374151 !important;
-    transition: all .12s !important;
+    transition: all .15s !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04) !important;
 }
 .stButton > button[kind="secondary"]:hover {
-    border-color: #cbd5e1 !important; background: #f8fafc !important;
+    border-color: #c7d2fe !important; background: #f5f3ff !important;
+    color: #4f46e5 !important;
 }
 
 /* ── Inputs ── */
@@ -531,16 +551,24 @@ div[data-baseweb="select"] > div:first-child {
 
 /* ── Dataframe ── */
 [data-testid="stDataFrame"] {
-    border: 1px solid #e2e8f0 !important; border-radius: 10px !important;
-    overflow: hidden !important; box-shadow: none !important;
+    border: 1px solid #e2e8f0 !important; border-radius: 12px !important;
+    overflow: hidden !important; box-shadow: 0 2px 8px rgba(0,0,0,.04) !important;
 }
 
 /* ── Alerts ── */
-.stAlert { border-radius: 10px !important; }
+.stAlert { border-radius: 10px !important; border: none !important; }
 [data-testid="stAlert"] { border-radius: 10px !important; }
 
 /* ── Expander ── */
-.stExpander { border: 1px solid #e2e8f0 !important; border-radius: 10px !important; }
+.stExpander {
+    border: 1px solid #e2e8f0 !important; border-radius: 12px !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,.04) !important;
+    overflow: hidden !important;
+}
+.stExpander summary {
+    font-weight: 600 !important; font-size: 14px !important;
+    color: #374151 !important;
+}
 
 /* ── Progress bar ── */
 [data-testid="stProgressBar"] > div > div {
@@ -549,6 +577,39 @@ div[data-baseweb="select"] > div:first-child {
 
 /* ── Slider ── */
 [data-testid="stSlider"] [role="slider"] { background: #4f46e5 !important; }
+[data-testid="stSlider"] [data-testid="stSlider"] > div > div > div {
+    background: #e0e7ff !important;
+}
+
+/* ── Checkbox ── */
+[data-testid="stCheckbox"] label { font-size: 13px !important; font-weight: 500 !important; color: #374151 !important; }
+
+/* ── Toggle ── */
+[data-testid="stToggle"] label { font-size: 13px !important; font-weight: 500 !important; }
+
+/* ── Radio ── */
+[data-testid="stRadio"] label { font-size: 13px !important; font-weight: 500 !important; }
+
+/* ── Metric (native Streamlit) polish ── */
+[data-testid="stMetric"] { background: white; border-radius: 12px; padding: 16px 18px;
+    border: 1px solid #e2e8f0; box-shadow: 0 2px 6px rgba(0,0,0,.05); }
+
+/* ── Textarea ── */
+.stTextArea textarea {
+    border-radius: 10px !important; border: 1px solid #e2e8f0 !important;
+    font-size: 13px !important; font-family: inherit !important;
+    transition: border-color .15s !important;
+}
+.stTextArea textarea:focus {
+    border-color: #4f46e5 !important;
+    box-shadow: 0 0 0 3px rgba(79,70,229,.12) !important;
+}
+
+/* ── Scrollbar (webkit) ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #f1f5f9; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
 /* ── Hide Streamlit chrome ── */
 #MainMenu, footer, header,
@@ -557,12 +618,21 @@ div[data-baseweb="select"] > div:first-child {
 [data-testid="stStatusWidget"] { display: none !important; }
 
 /* ── Prevent page dimming / blur during Streamlit reruns ── */
-/* Streamlit reduces opacity on the app container while a rerun is in
-   progress. This makes the whole page look "blurred" when any widget
-   is clicked. Setting opacity to 1 at all times removes that effect. */
+/* Streamlit fades [data-testid="stMain"] during reruns.
+   Cover every element in the hierarchy so none can dim. */
+.stApp,
+.stApp *,
 [data-testid="stAppViewContainer"],
 [data-testid="stAppViewContainer"] > section,
-.stApp { opacity: 1 !important; transition: none !important; }
+[data-testid="stMain"],
+[data-testid="stMainBlockContainer"],
+[data-testid="stVerticalBlock"],
+[data-testid="stVerticalBlockBorderWrapper"],
+section[tabindex="0"] {
+    opacity: 1 !important;
+    transition: opacity 0s !important;
+    animation: none !important;
+}
 
 /* Hide the top running progress bar that pulses during reruns */
 [data-testid="stProgressBar"],
@@ -570,15 +640,58 @@ div[class*="StatusWidget"] { display: none !important; }
 </style>
 """, unsafe_allow_html=True)
 
+# JavaScript MutationObserver — resets any inline opacity Streamlit injects
+# during reruns that CSS alone can't override (inline styles beat !important).
+import streamlit.components.v1 as _components
+_components.html("""
+<script>
+(function() {
+  var WATCH = [
+    '[data-testid="stMain"]',
+    '[data-testid="stMainBlockContainer"]',
+    '[data-testid="stAppViewContainer"]',
+    '[data-testid="stVerticalBlock"]',
+    'section[tabindex="0"]'
+  ];
+  function fixOpacity(el) {
+    if (el && el.style && el.style.opacity !== '' && el.style.opacity !== '1') {
+      el.style.opacity = '1';
+    }
+  }
+  function observeEl(el) {
+    if (!el) return;
+    fixOpacity(el);
+    new MutationObserver(function(muts) {
+      muts.forEach(function(m) {
+        if (m.attributeName === 'style' || m.attributeName === 'class') {
+          fixOpacity(m.target);
+        }
+      });
+    }).observe(el, { attributes: true, attributeFilter: ['style','class'] });
+  }
+  function init() {
+    WATCH.forEach(function(sel) {
+      document.querySelectorAll(sel).forEach(observeEl);
+    });
+  }
+  // Run now and again once Streamlit has rendered its DOM
+  init();
+  setTimeout(init, 500);
+  setTimeout(init, 1500);
+})();
+</script>
+""", height=0)
+
 # ─────────────────────────────────────────────────────────────────────────────
 # UI helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _section(title: str, subtitle: str = ""):
-    sub = (f'<p style="font-size:13px;color:#64748b;margin:3px 0 0;font-weight:400;">'
+    sub = (f'<p style="font-size:13px;color:#64748b;margin:4px 0 0;font-weight:400;">'
            f'{subtitle}</p>') if subtitle else ""
     st.markdown(
-        f'<div style="margin-bottom:22px;">'
+        f'<div style="margin-bottom:24px;padding-left:12px;'
+        f'border-left:3px solid #4f46e5;border-radius:0 2px 2px 0;">'
         f'<h3 style="font-size:17px;font-weight:700;color:#0f172a;margin:0;'
         f'letter-spacing:-0.3px;">{title}</h3>{sub}</div>',
         unsafe_allow_html=True,
@@ -587,34 +700,38 @@ def _section(title: str, subtitle: str = ""):
 
 def _card(content_html: str):
     st.markdown(
-        f'<div style="background:white;border-radius:12px;padding:24px;'
+        f'<div style="background:white;border-radius:14px;padding:24px 26px;'
         f'border:1px solid #e2e8f0;margin-bottom:16px;'
-        f'box-shadow:0 1px 3px rgba(0,0,0,.04);">{content_html}</div>',
+        f'box-shadow:0 2px 8px rgba(0,0,0,.05);">{content_html}</div>',
         unsafe_allow_html=True,
     )
 
 
 def _stat_card(label: str, value, color: str, sub: str = "", icon: str = ""):
-    sub_html = (f'<div style="font-size:11px;color:#94a3b8;margin-top:5px;'
-                f'font-weight:500;">{sub}</div>') if sub else ""
-    icon_html = (f'<div style="font-size:22px;margin-bottom:10px;line-height:1;">'
-                 f'{icon}</div>') if icon else ""
-    accent = (f'<div style="width:3px;height:36px;background:{color};'
-              f'border-radius:3px;flex-shrink:0;"></div>')
+    sub_html = (
+        f'<div style="font-size:11px;color:#94a3b8;margin-top:6px;font-weight:500;">'
+        f'{sub}</div>'
+    ) if sub else ""
+    icon_bubble = (
+        f'<div style="position:absolute;top:18px;right:18px;width:38px;height:38px;'
+        f'border-radius:10px;background:{color}20;display:flex;align-items:center;'
+        f'justify-content:center;font-size:19px;line-height:1;">{icon}</div>'
+    ) if icon else ""
     st.markdown(
-        f'<div style="background:white;border-radius:12px;padding:18px 20px;'
-        f'border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,.04);'
-        f'display:flex;align-items:center;gap:14px;min-height:116px;height:100%;'
+        f'<div style="background:white;border-radius:14px;padding:22px 20px 18px 20px;'
+        f'border:1px solid #e2e8f0;box-shadow:0 2px 8px rgba(0,0,0,.06);'
+        f'position:relative;overflow:hidden;min-height:112px;height:100%;'
         f'box-sizing:border-box;">'
-        f'{accent}'
-        f'<div style="flex:1;min-width:0;">'
-        f'{icon_html}'
+        # Coloured top accent bar
+        f'<div style="position:absolute;top:0;left:0;right:0;height:3px;'
+        f'background:{color};border-radius:14px 14px 0 0;"></div>'
+        f'{icon_bubble}'
         f'<div style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;'
-        f'letter-spacing:0.8px;margin-bottom:5px;white-space:nowrap;">{label}</div>'
-        f'<div style="font-size:28px;font-weight:800;color:#0f172a;line-height:1;'
-        f'letter-spacing:-1px;">{value}</div>'
+        f'letter-spacing:0.8px;margin-bottom:8px;padding-top:4px;">{label}</div>'
+        f'<div style="font-size:30px;font-weight:800;color:#0f172a;line-height:1;'
+        f'letter-spacing:-1.5px;">{value}</div>'
         f'{sub_html}'
-        f'</div></div>',
+        f'</div>',
         unsafe_allow_html=True,
     )
 
@@ -639,14 +756,17 @@ STATUS_BADGE = {
 with st.sidebar:
     # Wordmark
     st.markdown(
-        "<div style='padding:20px 0 12px;border-bottom:1px solid #1e293b;margin-bottom:12px;'>"
-        "<div style='display:flex;align-items:center;gap:8px;'>"
-        "<div style='width:28px;height:28px;background:#4f46e5;border-radius:7px;"
-        "display:flex;align-items:center;justify-content:center;font-size:14px;'>🚀</div>"
+        "<div style='padding:20px 0 14px;border-bottom:1px solid #1e293b;margin-bottom:14px;'>"
+        "<div style='display:flex;align-items:center;gap:10px;'>"
+        "<div style='width:32px;height:32px;"
+        "background:linear-gradient(135deg,#4f46e5,#7c3aed);border-radius:9px;"
+        "display:flex;align-items:center;justify-content:center;font-size:15px;"
+        "box-shadow:0 2px 8px rgba(79,70,229,.4);flex-shrink:0;'>🚀</div>"
         "<div>"
-        "<div style='font-size:14px;font-weight:700;color:#f1f5f9;letter-spacing:-0.3px;'>"
+        "<div style='font-size:14px;font-weight:700;color:#f1f5f9;letter-spacing:-0.4px;'>"
         "SEO Outreach</div>"
-        "<div style='font-size:10px;color:#475569;letter-spacing:0.3px;'>B2B COLD EMAIL ENGINE</div>"
+        "<div style='font-size:10px;color:#475569;letter-spacing:0.5px;text-transform:uppercase;'>"
+        "Cold Email Engine</div>"
         "</div></div></div>",
         unsafe_allow_html=True,
     )
@@ -656,15 +776,17 @@ with st.sidebar:
     user_email = st.session_state.get("_user_email", "")
     initials   = "".join(w[0].upper() for w in user_name.split()[:2]) if user_name else "?"
     st.markdown(
-        f"<div style='background:#1e293b;border-radius:8px;padding:10px 12px;"
-        f"margin:8px 0;display:flex;align-items:center;gap:10px;'>"
-        f"<div style='width:30px;height:30px;border-radius:50%;background:#2563eb;"
+        f"<div style='background:#1e293b;border:1px solid #334155;border-radius:10px;"
+        f"padding:10px 12px;margin:8px 0;display:flex;align-items:center;gap:10px;'>"
+        f"<div style='width:32px;height:32px;border-radius:50%;"
+        f"background:linear-gradient(135deg,#2563eb,#4f46e5);"
         f"display:flex;align-items:center;justify-content:center;"
-        f"font-size:12px;font-weight:700;color:white;flex-shrink:0;'>{initials}</div>"
-        f"<div style='min-width:0;'>"
+        f"font-size:12px;font-weight:700;color:white;flex-shrink:0;"
+        f"box-shadow:0 2px 6px rgba(79,70,229,.35);'>{initials}</div>"
+        f"<div style='min-width:0;flex:1;'>"
         f"<div style='font-size:12px;font-weight:600;color:#e2e8f0;"
         f"white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{user_name}</div>"
-        f"<div style='font-size:11px;color:#475569;white-space:nowrap;"
+        f"<div style='font-size:11px;color:#64748b;white-space:nowrap;"
         f"overflow:hidden;text-overflow:ellipsis;'>{user_email}</div>"
         f"</div></div>",
         unsafe_allow_html=True,
@@ -679,20 +801,20 @@ with st.sidebar:
     if _db_ok:
         st.markdown(
             "<div style='background:#052e16;border:1px solid #166534;"
-            "border-radius:8px;padding:8px 12px;margin:8px 0;'>"
-            "<div style='font-size:11px;font-weight:700;color:#4ade80;"
-            "letter-spacing:0.5px;'>🗄️ TURSO · DATA SAFE</div>"
-            "<div style='font-size:10px;color:#86efac;margin-top:2px;'>"
-            "All leads persist across restarts</div></div>",
+            "border-radius:10px;padding:10px 12px;margin:8px 0;'>"
+            "<div style='font-size:10px;font-weight:700;color:#4ade80;"
+            "letter-spacing:0.6px;text-transform:uppercase;'>🗄️ Turso · Data Safe</div>"
+            "<div style='font-size:11px;color:#86efac;margin-top:3px;'>"
+            "Leads persist across restarts</div></div>",
             unsafe_allow_html=True,
         )
     else:
         st.markdown(
             f"<div style='background:#450a0a;border:1px solid #991b1b;"
-            f"border-radius:8px;padding:8px 12px;margin:8px 0;'>"
-            f"<div style='font-size:11px;font-weight:700;color:#f87171;"
-            f"letter-spacing:0.5px;'>⚠️ LOCAL SQLITE · DATA AT RISK</div>"
-            f"<div style='font-size:10px;color:#fca5a5;margin-top:2px;'>"
+            f"border-radius:10px;padding:10px 12px;margin:8px 0;'>"
+            f"<div style='font-size:10px;font-weight:700;color:#f87171;"
+            f"letter-spacing:0.6px;text-transform:uppercase;'>⚠️ Local SQLite · At Risk</div>"
+            f"<div style='font-size:11px;color:#fca5a5;margin-top:3px;'>"
             f"{_db_msg}</div></div>",
             unsafe_allow_html=True,
         )
@@ -1835,32 +1957,50 @@ with tab_send:
                 unsafe_allow_html=True,
             )
 
-        if confirmed_ct == 0:
+        # Sendable pool = confirmed ("found") + inferred — both are real addresses.
+        # Guessed (info@…) stays separate and is never auto-queued.
+        import pandas as _pd2
+        df_sendable = _pd2.concat(
+            [df for df in [df_confirmed, df_inferred] if not df.empty],
+            ignore_index=True,
+        )
+        sendable_ct = len(df_sendable)
+
+        if sendable_ct == 0:
             if not _is_running:
                 st.markdown(
                     "<div style='background:white;border-radius:12px;padding:48px 24px;"
                     "text-align:center;border:1px solid #e9ecef;'>"
                     "<p style='font-size:32px;margin:0 0 12px;'>📭</p>"
                     "<p style='font-size:16px;font-weight:600;color:#111827;margin:0 0 6px;'>"
-                    "No confirmed leads ready</p>"
+                    "No leads ready to send</p>"
                     "<p style='font-size:13px;color:#9ca3af;margin:0;'>"
                     "Go to Find Leads to scrape more businesses.</p>"
                     "</div>", unsafe_allow_html=True)
         else:
             # Summary stats
             s1, s2, s3 = st.columns(3)
-            with s1: _stat_card("Confirmed leads ready", confirmed_ct, "#16a34a",
-                                 "extracted from website")
+            with s1:
+                _stat_card(
+                    "Ready to send", sendable_ct, "#16a34a",
+                    f"{confirmed_ct} confirmed · {inferred_ct} inferred",
+                )
             with s2:
-                est_mins = max(1, (min(confirmed_ct, 20) * delay_sec) // 60)
+                est_mins = max(1, (min(sendable_ct, 20) * delay_sec) // 60)
                 _stat_card("Est. for 20 emails", f"~{est_mins} min", "#6b7280")
-            with s3: _stat_card("Delay between sends", f"{delay_sec}s", "#7c3aed")
+            with s3:
+                _stat_card("Delay between sends", f"{delay_sec}s", "#7c3aed")
 
             st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
-            # Confirmed leads table
-            _c_disp = df_confirmed.copy()
-            _c_disp["Email"] = "✅ " + _c_disp["email"].fillna("")
+            # Combined leads table
+            _c_disp = df_sendable.copy()
+            def _email_label(row):
+                src = row.get("email_source", "found")
+                if src == "inferred":
+                    return "🔮 " + str(row.get("email", ""))
+                return "✅ " + str(row.get("email", ""))
+            _c_disp["Email"] = _c_disp.apply(_email_label, axis=1)
             _cc = [c for c in ["id","business_name","Email","city","country","keyword"]
                    if c in _c_disp.columns]
             st.dataframe(_c_disp[_cc], use_container_width=True,
@@ -1887,11 +2027,13 @@ with tab_send:
                     unsafe_allow_html=True,
                 )
 
+            _slider_max = max(1, min(200, sendable_ct))
+            _slider_val = max(1, min(20, sendable_ct))
             sc1, sc2 = st.columns([3, 1])
             with sc1:
                 max_send = st.slider(
                     "How many emails to queue?",
-                    1, min(200, confirmed_ct), min(20, confirmed_ct),
+                    1, _slider_max, _slider_val,
                 )
             with sc2:
                 est_total = max(1, (max_send * delay_sec) // 60)
@@ -1929,7 +2071,7 @@ with tab_send:
                     f"& send in background {method_label}",
                     type="primary", use_container_width=True,
                 ):
-                    ids = df_confirmed.head(max_send)["id"].astype(int).tolist()
+                    ids = df_sendable.head(max_send)["id"].astype(int).tolist()
                     _eff_name = (st.session_state.get("s_brevo_name","") or "Aniruddh Gohil") \
                                 if _brevo_key_send else sender_name
                     _port = st.session_state.get("s_portfolio", DEFAULT_PORTFOLIO_URL)
