@@ -1078,6 +1078,106 @@ with tab_find:
 
     # ── Batch Search ──────────────────────────────────────────────────────────
     # ── Batch search templates ────────────────────────────────────────────────
+
+    _HIGH_VALUE_UK = """\
+HVAC engineer, Birmingham, United Kingdom
+HVAC engineer, Manchester, United Kingdom
+HVAC engineer, Leeds, United Kingdom
+HVAC engineer, Bristol, United Kingdom
+HVAC engineer, Sheffield, United Kingdom
+roofing contractor, Birmingham, United Kingdom
+roofing contractor, Manchester, United Kingdom
+roofing contractor, Leeds, United Kingdom
+roofing contractor, Bristol, United Kingdom
+roofing contractor, Sheffield, United Kingdom
+personal injury solicitor, Birmingham, United Kingdom
+personal injury solicitor, Manchester, United Kingdom
+personal injury solicitor, Leeds, United Kingdom
+personal injury solicitor, Bristol, United Kingdom
+personal injury solicitor, Liverpool, United Kingdom
+funeral director, Birmingham, United Kingdom
+funeral director, Manchester, United Kingdom
+funeral director, Leeds, United Kingdom
+funeral director, Bristol, United Kingdom
+funeral director, Sheffield, United Kingdom
+chiropractor, Birmingham, United Kingdom
+chiropractor, Manchester, United Kingdom
+chiropractor, Leeds, United Kingdom
+chiropractor, Bristol, United Kingdom
+chiropractor, Liverpool, United Kingdom
+emergency plumber, Birmingham, United Kingdom
+emergency plumber, Manchester, United Kingdom
+emergency plumber, Leeds, United Kingdom
+emergency plumber, Bristol, United Kingdom
+emergency plumber, Sheffield, United Kingdom
+landscape gardener, Birmingham, United Kingdom
+landscape gardener, Manchester, United Kingdom
+landscape gardener, Leeds, United Kingdom
+landscape gardener, Bristol, United Kingdom
+landscape gardener, Sheffield, United Kingdom
+garden maintenance, Birmingham, United Kingdom
+garden maintenance, Manchester, United Kingdom
+garden maintenance, Leeds, United Kingdom
+garden maintenance, Bristol, United Kingdom
+garden maintenance, Liverpool, United Kingdom
+rubbish removal, Birmingham, United Kingdom
+rubbish removal, Manchester, United Kingdom
+rubbish removal, Leeds, United Kingdom
+rubbish removal, Bristol, United Kingdom
+rubbish removal, Sheffield, United Kingdom
+water tank installation, Birmingham, United Kingdom
+water tank installation, Manchester, United Kingdom
+water tank installation, Leeds, United Kingdom
+water tank installation, Bristol, United Kingdom
+water tank installation, Sheffield, United Kingdom"""
+
+    _HIGH_VALUE_LONDON = """\
+HVAC engineer, N1 Islington, United Kingdom
+HVAC engineer, SW4 Clapham, United Kingdom
+HVAC engineer, E2 Bethnal Green, United Kingdom
+HVAC engineer, SE1 Bermondsey, United Kingdom
+HVAC engineer, W4 Chiswick, United Kingdom
+roofing contractor, CR0 Croydon, United Kingdom
+roofing contractor, BR2 Bromley, United Kingdom
+roofing contractor, HA3 Harrow, United Kingdom
+roofing contractor, E17 Walthamstow, United Kingdom
+roofing contractor, RM1 Romford, United Kingdom
+personal injury solicitor, CR0 Croydon, United Kingdom
+personal injury solicitor, E17 Walthamstow, United Kingdom
+personal injury solicitor, UB1 Southall, United Kingdom
+personal injury solicitor, IG1 Ilford, United Kingdom
+personal injury solicitor, DA1 Dartford, United Kingdom
+funeral director, N17 Tottenham, United Kingdom
+funeral director, SE25 South Norwood, United Kingdom
+funeral director, SW16 Streatham, United Kingdom
+funeral director, RM1 Romford, United Kingdom
+funeral director, IG1 Ilford, United Kingdom
+chiropractor, SW4 Clapham, United Kingdom
+chiropractor, N1 Islington, United Kingdom
+chiropractor, W4 Chiswick, United Kingdom
+chiropractor, SE1 Bermondsey, United Kingdom
+chiropractor, E2 Bethnal Green, United Kingdom
+emergency plumber, CR0 Croydon, United Kingdom
+emergency plumber, BR2 Bromley, United Kingdom
+emergency plumber, HA3 Harrow, United Kingdom
+emergency plumber, E17 Walthamstow, United Kingdom
+emergency plumber, RM1 Romford, United Kingdom
+landscape gardener, SW16 Streatham, United Kingdom
+landscape gardener, W4 Chiswick, United Kingdom
+landscape gardener, N1 Islington, United Kingdom
+landscape gardener, BR2 Bromley, United Kingdom
+landscape gardener, KT1 Kingston, United Kingdom
+rubbish removal, CR0 Croydon, United Kingdom
+rubbish removal, E17 Walthamstow, United Kingdom
+rubbish removal, IG1 Ilford, United Kingdom
+rubbish removal, UB1 Southall, United Kingdom
+rubbish removal, DA1 Dartford, United Kingdom
+water tank installation, N1 Islington, United Kingdom
+water tank installation, SW4 Clapham, United Kingdom
+water tank installation, W4 Chiswick, United Kingdom
+water tank installation, SE1 Bermondsey, United Kingdom
+water tank installation, E2 Bethnal Green, United Kingdom"""
+
     _UK_TRADES = """\
 emergency plumber, Birmingham, United Kingdom
 boiler repair, Manchester, United Kingdom
@@ -1237,10 +1337,23 @@ skin clinic, EN1 Enfield, United Kingdom"""
         with l3:
             if st.button("🏥 London Healthcare", use_container_width=True, key="tpl_lonhealth"):
                 st.session_state["batch_text"] = _UK_HEALTHCARE.replace(", United Kingdom",
-                    ", London, United Kingdom")  # crude but quick reuse
+                    ", London, United Kingdom")
         with l4:
             if st.button("💅 London Beauty", use_container_width=True, key="tpl_lonbeauty"):
                 st.session_state["batch_text"] = _LONDON_BEAUTY
+
+        st.markdown("<p style='font-size:11px;font-weight:600;color:#9ca3af;"
+                    "text-transform:uppercase;letter-spacing:0.5px;margin:8px 0 6px;'>"
+                    "High-value local services</p>", unsafe_allow_html=True)
+        h1, h2 = st.columns(2)
+        with h1:
+            if st.button("🏆 High-Value UK (50 searches)", use_container_width=True,
+                         key="tpl_highvalue_uk"):
+                st.session_state["batch_text"] = _HIGH_VALUE_UK
+        with h2:
+            if st.button("🏆 High-Value London (45 searches)", use_container_width=True,
+                         key="tpl_highvalue_lon"):
+                st.session_state["batch_text"] = _HIGH_VALUE_LONDON
 
         batch_text = st.text_area(
             "Search list",
