@@ -1251,16 +1251,25 @@ skin clinic, EN1 Enfield, United Kingdom"""
             key="batch_textarea",
         )
 
-        _bp1, _bp2 = st.columns([2, 1])
+        _bp1, _bp2, _bp3 = st.columns([3, 1, 1])
         with _bp1:
             batch_pages = st.slider("Pages per search", 1, 10, 3, key="batch_pages",
                                     help="3 pages ≈ 30 businesses per keyword. "
                                          "Lower = faster batch, higher = more leads per search.")
         with _bp2:
-            batch_email = st.toggle("Auto-extract emails", value=True, key="batch_email")
+            batch_email = st.toggle("Auto-extract emails", value=True, key="batch_email",
+                                    help="ON = visits each website to find email (slower but ready to send).\n"
+                                         "OFF = saves businesses only, no email lookup (much faster).")
+        with _bp3:
+            _threads = st.select_slider("Threads", options=[4, 8, 12, 16], value=8, key="batch_threads",
+                                        help="Parallel email extractions. Higher = faster but uses more memory.")
 
         _b_lines = [l.strip() for l in batch_text.strip().splitlines() if l.strip() and not l.startswith("#")]
-        st.caption(f"{'📋 ' + str(len(_b_lines)) + ' searches queued' if _b_lines else '⬆ Fill in the list above or pick a template'}")
+        _est_mins = max(1, int(len(_b_lines) * batch_pages * 2 / (_threads if batch_email else 60)))
+        st.caption(
+            f"{'📋 ' + str(len(_b_lines)) + ' searches queued' if _b_lines else '⬆ Fill in the list above or pick a template'}"
+            + (f" · ⏱ ~{_est_mins} min estimated" if _b_lines else "")
+        )
 
         if st.button("🚀 Run Batch Search", type="primary",
                      use_container_width=True, key="btn_batch"):
@@ -1339,6 +1348,22 @@ skin clinic, EN1 Enfield, United Kingdom"""
                             unsafe_allow_html=True,
                         )
 
+                from concurrent.futures import ThreadPoolExecutor, as_completed as _as_completed
+
+                def _extract_one(biz):
+                    """Fetch email for one business — runs in a thread pool."""
+                    if not biz.get("website"):
+                        biz["email"] = None
+                        biz["email_source"] = None
+                        biz["status"] = "no_email"
+                        return biz
+                    em, es = find_email_on_website(biz["website"], use_guess_fallback=False)
+                    biz["email"] = em
+                    biz["email_source"] = es
+                    if not em:
+                        biz["status"] = "no_email"
+                    return biz
+
                 for _bi, _line in enumerate(_b_lines):
                     parts = [p.strip() for p in _line.split(",")]
                     if len(parts) < 2:
@@ -1356,30 +1381,37 @@ skin clinic, EN1 Enfield, United Kingdom"""
                     _b_bizs = find_businesses(
                         keyword=_b_kw, location=_b_loc, country=_b_ctry,
                         max_pages=batch_pages,
-                        skip_top=10,  # always target page 2+
+                        skip_top=10,
                         serper_key=_serper_key, foursquare_key=_fsq_key,
                         yelp_api_key=_yelp_key, google_places_key=_gplaces_key,
                         log_cb=_blog,
                     )
 
-                    _b_new = 0
-                    for _biz in _b_bizs:
-                        if is_duplicate_lead(website=_biz.get("website",""),
-                                             phone=_biz.get("phone","")):
-                            continue
-                        if batch_email and _biz.get("website"):
-                            _em, _es = find_email_on_website(
-                                _biz["website"], use_guess_fallback=False
-                            )
-                            _biz["email"]        = _em
-                            _biz["email_source"] = _es
-                            if not _em:
-                                _biz["status"] = "no_email"
-                        else:
-                            _biz["email"] = None
-                            _biz["email_source"] = None
-                            _biz["status"] = "no_email"
+                    # Deduplicate before hitting websites
+                    _b_unique = [b for b in _b_bizs
+                                 if not is_duplicate_lead(
+                                     website=b.get("website",""),
+                                     phone=b.get("phone",""))]
 
+                    # ── Parallel email extraction ─────────────────────────
+                    _n_threads = st.session_state.get("batch_threads", 8)
+                    if batch_email and _b_unique:
+                        _blog(f"  📧 Extracting emails from {len(_b_unique)} sites ({_n_threads} threads)…")
+                        with ThreadPoolExecutor(max_workers=_n_threads) as _pool:
+                            _futures = {_pool.submit(_extract_one, b): b for b in _b_unique}
+                            for _fut in _as_completed(_futures):
+                                try:
+                                    _futures[_fut].update(_fut.result())
+                                except Exception:
+                                    pass
+                    else:
+                        for b in _b_unique:
+                            b["email"] = None
+                            b["email_source"] = None
+                            b["status"] = "no_email"
+
+                    _b_new = 0
+                    for _biz in _b_unique:
                         if insert_lead(_biz):
                             _b_new += 1
 
