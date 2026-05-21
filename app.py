@@ -617,6 +617,29 @@ div[data-baseweb="select"] > div:first-child {
 [data-testid="stDecoration"],
 [data-testid="stStatusWidget"] { display: none !important; }
 
+/* ── Sidebar collapse/expand button — always visible ── */
+[data-testid="collapsedControl"],
+[data-testid="stSidebarCollapsedControl"] {
+    display: flex !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    background: #1e293b !important;
+    border: 1px solid #334155 !important;
+    border-radius: 8px !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,.3) !important;
+    transition: background .15s !important;
+}
+[data-testid="collapsedControl"]:hover,
+[data-testid="stSidebarCollapsedControl"]:hover {
+    background: #334155 !important;
+    border-color: #4f46e5 !important;
+}
+[data-testid="collapsedControl"] svg,
+[data-testid="stSidebarCollapsedControl"] svg {
+    fill: #94a3b8 !important;
+    color: #94a3b8 !important;
+}
+
 /* ── Prevent page dimming / blur during Streamlit reruns ── */
 /* Streamlit fades [data-testid="stMain"] during reruns.
    Cover every element in the hierarchy so none can dim. */
