@@ -15,7 +15,6 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 from streamlit_oauth import OAuth2Component
-import extra_streamlit_components as stx
 
 import bg_state
 from database import (
@@ -234,12 +233,11 @@ def _decode_id_token(id_token: str) -> dict:
         return {}
 
 
-_COOKIE_NAME    = "seo_outreach_auth"
-_COOKIE_DAYS    = 7
-_cookie_manager = stx.CookieManager(key="_auth_cookies")
+import hashlib as _hashlib
 
-def _get_cookie_manager():
-    return _cookie_manager
+def _session_token(email: str, secret: str) -> str:
+    """Deterministic token — same email+secret always gives same token."""
+    return _hashlib.sha256(f"{email}:{secret}".encode()).hexdigest()[:32]
 
 
 def _login_page() -> bool:
@@ -247,21 +245,22 @@ def _login_page() -> bool:
     if st.session_state.get("_authenticated"):
         return True
 
-    # ── 2. Skip cookie if user explicitly signed out ───────────────────────
-    # cookie.delete() is async JS — rerun fires before deletion completes,
-    # so we guard with a session flag set at sign-out time.
+    # ── 2. Restore from URL query param (persists across refreshes) ────────
     if not st.session_state.get("_signed_out"):
         try:
-            _cm = _get_cookie_manager()
-            _saved = _cm.get(_COOKIE_NAME)
-            if _saved:
-                _parts = _saved.split("|", 1)
-                if len(_parts) == 2:
-                    _c_email, _c_name = _parts
-                    st.session_state["_authenticated"] = True
-                    st.session_state["_user_email"]    = _c_email
-                    st.session_state["_user_name"]     = _c_name
-                    return True
+            _qp        = st.query_params
+            _qt        = _qp.get("_t", "")
+            _qe        = _qp.get("_e", "")
+            _qn        = _qp.get("_n", "")
+            _secret    = st.secrets.get("auth_secret", "seo-outreach-default-secret")
+            ALLOWED_EMAILS = [e.strip().lower()
+                              for e in st.secrets.get("allowed_emails", [])]
+            if (_qt and _qe and _qe.lower() in ALLOWED_EMAILS
+                    and _qt == _session_token(_qe.lower(), _secret)):
+                st.session_state["_authenticated"] = True
+                st.session_state["_user_email"]    = _qe.lower()
+                st.session_state["_user_name"]     = _qn or _qe
+                return True
         except Exception:
             pass
 
@@ -374,14 +373,12 @@ def _login_page() -> bool:
             st.session_state["_authenticated"] = True
             st.session_state["_user_email"]    = email
             st.session_state["_user_name"]     = name
-            # Persist login in browser cookie so refresh doesn't log out
+            # Persist login across refreshes via URL query params (no cookies needed)
             try:
-                from datetime import timedelta
-                _get_cookie_manager().set(
-                    _COOKIE_NAME,
-                    f"{email}|{name}",
-                    expires_at=datetime.now() + timedelta(days=_COOKIE_DAYS),
-                )
+                _secret = st.secrets.get("auth_secret", "seo-outreach-default-secret")
+                st.query_params["_t"] = _session_token(email, _secret)
+                st.query_params["_e"] = email
+                st.query_params["_n"] = name
             except Exception:
                 pass
             st.rerun()
@@ -819,12 +816,12 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
     if st.button("Sign out", use_container_width=True):
-        # Delete cookie (async JS — may not complete before rerun)
+        # Clear URL query params so refresh doesn't restore the session
         try:
-            _get_cookie_manager().delete(_COOKIE_NAME)
+            st.query_params.clear()
         except Exception:
             pass
-        # Clear everything and set signed_out flag to block cookie restore
+        # Clear session and mark signed_out to block query-param restore
         st.session_state.clear()
         st.session_state["_signed_out"] = True
         st.rerun()
