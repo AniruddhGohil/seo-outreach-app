@@ -866,9 +866,10 @@ with st.sidebar:
                 f"align-items:center;'>"
                 f"<span style='font-size:11px;color:#475569;'>"
                 f"{_left} remaining today</span>"
-                f"<span style='font-size:10px;color:#334155;"
-                f"background:#1e293b;border-radius:4px;padding:1px 5px;"
-                f"font-weight:600;'>Brevo free tier</span>"
+                f"<span style='font-size:10px;color:#4ade80;"
+                f"background:rgba(74,222,128,0.12);border:1px solid rgba(74,222,128,0.25);"
+                f"border-radius:4px;padding:2px 7px;"
+                f"font-weight:600;letter-spacing:0.3px;'>Brevo free tier</span>"
                 f"</div>"
                 f"</div>",
                 unsafe_allow_html=True,
@@ -904,9 +905,10 @@ with st.sidebar:
                     f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
                     f"<span style='font-size:11px;color:#475569;'>"
                     f"{_sc_used:,} used of {_sc_limit:,}</span>"
-                    f"<span style='font-size:10px;color:#334155;"
-                    f"background:#1e293b;border-radius:4px;padding:1px 5px;"
-                    f"font-weight:600;'>Serper free tier</span>"
+                    f"<span style='font-size:10px;color:#60a5fa;"
+                    f"background:rgba(96,165,250,0.12);border:1px solid rgba(96,165,250,0.25);"
+                    f"border-radius:4px;padding:2px 7px;"
+                    f"font-weight:600;letter-spacing:0.3px;'>Serper free tier</span>"
                     f"</div></div>",
                     unsafe_allow_html=True,
                 )
