@@ -282,118 +282,84 @@ def _login_page() -> bool:
         [data-testid="stDecoration"],
         [data-testid="stStatusWidget"] { display: none !important; }
 
-        html, body, .stApp { background: #f8f9fb !important; }
-        .stApp > .main, .block-container,
-        .block-container > div, .block-container > div > div {
-            padding: 0 !important; margin: 0 !important;
-            max-width: 100% !important; width: 100% !important;
-            background: #f8f9fb !important;
-        }
+        html, body, .stApp { background: #f1f5f9 !important; }
+        .block-container { max-width: 480px !important; padding: 10vh 1rem 2rem !important; }
 
-        /* ── Google button — target every possible selector ── */
+        /* ── OAuth / Google button ── */
         [data-testid="stBaseButton-secondary"],
         [data-testid="stLinkButton"] a,
         .stLinkButton a,
         .stButton > button {
             background: white !important;
             border: 1.5px solid #e2e8f0 !important;
-            border-radius: 99px !important;
+            border-radius: 12px !important;
             color: #1e293b !important;
             font-size: 15px !important;
             font-weight: 600 !important;
-            height: 50px !important;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.10) !important;
-            transition: all .15s !important;
+            padding: 12px 20px !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
+            width: 100% !important;
+            transition: box-shadow .15s, border-color .15s !important;
         }
         [data-testid="stBaseButton-secondary"]:hover,
-        [data-testid="stLinkButton"] a:hover,
-        .stLinkButton a:hover,
         .stButton > button:hover {
-            box-shadow: 0 6px 24px rgba(0,0,0,0.14) !important;
-            transform: translateY(-1px) !important;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12) !important;
             border-color: #a5b4fc !important;
         }
-        /* Remove Streamlit's default element spacing in login column */
-        [data-testid="stVerticalBlock"] > [data-testid="stVerticalBlockBorderWrapper"],
-        [data-testid="stVerticalBlock"] > div { gap: 0 !important; }
+        /* ensure iframe/component inside card is visible */
+        iframe { display: block !important; opacity: 1 !important; }
     </style>
     """, unsafe_allow_html=True)
 
-    # ── Single centred column ─────────────────────────────────────────────────
-    _, centre, _ = st.columns([1, 1.2, 1])
+    # ── Branding card ─────────────────────────────────────────────────────────
+    st.markdown("""
+    <div style="background:white;border-radius:20px;
+                border:1px solid #e2e8f0;
+                box-shadow:0 4px 24px rgba(0,0,0,0.08);
+                padding:40px 36px 32px;text-align:center;margin-bottom:4px;">
 
-    with centre:
-        st.markdown("<div style='height:8vh'></div>", unsafe_allow_html=True)
+      <div style="font-size:40px;margin-bottom:16px;">🚀</div>
 
-        # ── Everything in one white card ──────────────────────────────────
-        st.markdown("""
-        <div style="background:white; border-radius:24px;
-                    border:1px solid #e8ecf0;
-                    box-shadow:0 8px 40px rgba(0,0,0,0.10);
-                    padding:40px 44px 32px; text-align:center;">
+      <div style="font-size:22px;font-weight:800;color:#0f172a;
+                  letter-spacing:-0.5px;margin-bottom:6px;
+                  font-family:'Inter','Segoe UI',sans-serif;">
+        SEO Outreach Engine
+      </div>
+      <div style="font-size:13px;color:#94a3b8;margin-bottom:28px;">
+        Find leads · Extract emails · Close clients
+      </div>
 
-          <div style="display:inline-flex; align-items:center; justify-content:center;
-                      width:56px; height:56px; background:#f0f4ff;
-                      border-radius:16px; font-size:26px; margin-bottom:20px;
-                      box-shadow:0 2px 8px rgba(79,70,229,0.15);">
-            🚀
-          </div>
+      <div style="height:1px;background:#f1f5f9;margin:0 -36px 24px;"></div>
 
-          <div style="font-size:22px; font-weight:800; color:#0f172a;
-                      letter-spacing:-0.5px; margin-bottom:6px;
-                      font-family:'Inter','Segoe UI',sans-serif;">
-            SEO Outreach Engine
-          </div>
-          <div style="font-size:13px; color:#94a3b8; margin-bottom:28px;">
-            Find leads · Extract emails · Close clients
-          </div>
+      <div style="font-size:11px;font-weight:700;color:#64748b;
+                  text-transform:uppercase;letter-spacing:1px;margin-bottom:20px;">
+        Sign in with Google to continue
+      </div>
 
-          <div style="height:1px; background:#f1f5f9; margin:0 -44px 28px;"></div>
+    </div>
+    """, unsafe_allow_html=True)
 
-          <div style="font-size:12px; font-weight:600; color:#64748b;
-                      text-transform:uppercase; letter-spacing:0.8px; margin-bottom:14px;">
-            Sign in to your workspace
-          </div>
+    # ── OAuth button rendered directly — no nested columns ────────────────────
+    oauth2 = OAuth2Component(
+        CLIENT_ID, CLIENT_SECRET,
+        _GOOGLE_AUTH_URL,
+        _GOOGLE_TOKEN_URL, _GOOGLE_TOKEN_URL,
+        _GOOGLE_REVOKE_URL,
+    )
+    result = oauth2.authorize_button(
+        name="Continue with Google",
+        redirect_uri=REDIRECT_URI,
+        scope="openid email profile",
+        icon="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg",
+        use_container_width=True,
+        key="google_login_btn",
+    )
 
-        </div>
-        """, unsafe_allow_html=True)
-
-        # ── OAuth button — centred with padding on sides ──────────────────
-        oauth2 = OAuth2Component(
-            CLIENT_ID, CLIENT_SECRET,
-            _GOOGLE_AUTH_URL,
-            _GOOGLE_TOKEN_URL, _GOOGLE_TOKEN_URL,
-            _GOOGLE_REVOKE_URL,
-        )
-        _b1, _b2, _b3 = st.columns([1, 3, 1])
-        with _b2:
-            result = oauth2.authorize_button(
-                name="Continue with Google",
-                redirect_uri=REDIRECT_URI,
-                scope="openid email profile",
-                icon="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg",
-                use_container_width=True,
-                key="google_login_btn",
-            )
-
-        # ── Trust badges + footer ─────────────────────────────────────────
-        st.markdown("""
-        <div style="text-align:center; margin-top:24px;">
-          <div style="display:flex; justify-content:center; align-items:center;
-                      gap:14px; flex-wrap:wrap; margin-bottom:16px;">
-            <span style="font-size:11px; color:#cbd5e1;">🔒 OAuth 2.0 secured</span>
-            <span style="color:#e2e8f0;">·</span>
-            <span style="font-size:11px; color:#cbd5e1;">✅ Google verified</span>
-            <span style="color:#e2e8f0;">·</span>
-            <span style="font-size:11px; color:#cbd5e1;">🔐 Private access only</span>
-          </div>
-          <div style="font-size:11px; color:#cbd5e1;">
-            SEO Outreach Engine &nbsp;·&nbsp; Built for B2B cold email
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        st.markdown("<div style='height:5vh'></div>", unsafe_allow_html=True)
+    st.markdown("""
+    <div style="text-align:center;margin-top:20px;">
+      <span style="font-size:11px;color:#94a3b8;">🔒 OAuth 2.0 · Google verified · Private access</span>
+    </div>
+    """, unsafe_allow_html=True)
 
     if result and "token" in result:
         user_info = _decode_id_token(result["token"].get("id_token", ""))
@@ -681,19 +647,19 @@ div[data-baseweb="select"] > div:first-child {
 /* ── Prevent page dimming / blur during Streamlit reruns ── */
 /* Streamlit fades [data-testid="stMain"] during reruns.
    Cover every element in the hierarchy so none can dim. */
-.stApp,
-.stApp *,
 [data-testid="stAppViewContainer"],
 [data-testid="stAppViewContainer"] > section,
 [data-testid="stMain"],
 [data-testid="stMainBlockContainer"],
 [data-testid="stVerticalBlock"],
 [data-testid="stVerticalBlockBorderWrapper"],
-section[tabindex="0"] {
+section[tabindex="0"],
+.stApp {
     opacity: 1 !important;
     transition: opacity 0s !important;
-    animation: none !important;
 }
+/* Do NOT apply animation:none to .stApp * — it breaks iframe-based
+   components (OAuth button, CookieManager, custom components). */
 
 /* Hide the top running progress bar that pulses during reruns */
 [data-testid="stProgressBar"],
