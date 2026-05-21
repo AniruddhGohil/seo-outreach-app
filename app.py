@@ -234,12 +234,12 @@ def _decode_id_token(id_token: str) -> dict:
         return {}
 
 
-@st.cache_resource
-def _get_cookie_manager():
-    return stx.CookieManager(key="_auth_cookies")
+_COOKIE_NAME    = "seo_outreach_auth"
+_COOKIE_DAYS    = 7
+_cookie_manager = stx.CookieManager(key="_auth_cookies")
 
-_COOKIE_NAME = "seo_outreach_auth"
-_COOKIE_DAYS = 7
+def _get_cookie_manager():
+    return _cookie_manager
 
 
 def _login_page() -> bool:
