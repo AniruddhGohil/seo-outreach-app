@@ -394,6 +394,33 @@ if not _login_page():
 init_db()
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Cached sidebar API calls (TTL = 5 min) — prevents every button click from
+# making slow external HTTP calls to Brevo / Serper / Turso DB.
+# ─────────────────────────────────────────────────────────────────────────────
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_brevo_stats(api_key: str) -> dict:
+    try:
+        return brevo_sender.get_today_stats(api_key) or {}
+    except Exception:
+        return {}
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_serper_credits(api_key: str) -> dict:
+    try:
+        from scraper import get_serper_credits as _gsc
+        return _gsc(api_key) or {}
+    except Exception:
+        return {}
+
+@st.cache_data(ttl=60, show_spinner=False)
+def _cached_db_status() -> tuple:
+    try:
+        return test_connection()
+    except Exception:
+        return (False, "Connection error", "unknown")
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Design system – global CSS
 # ─────────────────────────────────────────────────────────────────────────────
 st.markdown("""
@@ -642,69 +669,44 @@ div[data-baseweb="select"] > div:first-child {
 }
 
 /* ── Prevent page dimming / blur during Streamlit reruns ── */
-/* Streamlit fades [data-testid="stMain"] during reruns.
-   Cover every element in the hierarchy so none can dim. */
+/*
+  Streamlit JS sets inline style="opacity:0.3" on stMain during reruns.
+  Inline styles beat CSS !important in normal cascade.
+  BUT: CSS animation values override inline styles per the CSS cascade spec
+  (animations sit above the author origin, which includes inline styles).
+  So a continuously-running keyframe that forces opacity:1 wins every time.
+*/
+@keyframes _keepOpaque { 0%, 100% { opacity: 1; filter: none; } }
+
 [data-testid="stAppViewContainer"],
 [data-testid="stAppViewContainer"] > section,
 [data-testid="stMain"],
 [data-testid="stMainBlockContainer"],
 [data-testid="stVerticalBlock"],
 [data-testid="stVerticalBlockBorderWrapper"],
-section[tabindex="0"],
-.stApp {
-    opacity: 1 !important;
-    transition: opacity 0s !important;
+section[tabindex="0"] {
+    animation: _keepOpaque 1ms step-end infinite !important;
+    pointer-events: auto !important;
+    filter: none !important;
 }
-/* Do NOT apply animation:none to .stApp * — it breaks iframe-based
-   components (OAuth button, CookieManager, custom components). */
 
-/* Hide the top running progress bar that pulses during reruns */
-[data-testid="stProgressBar"],
-div[class*="StatusWidget"] { display: none !important; }
+/* Ensure buttons and interactive elements are always clickable */
+.stButton, .stButton > button,
+.stSelectbox, .stTextInput, .stNumberInput,
+.stCheckbox, .stRadio, .stToggle, .stSlider,
+[data-testid="stTabs"], [data-baseweb="tab"],
+[data-testid="stSidebar"] * {
+    pointer-events: auto !important;
+    position: relative;
+}
+
+/* Hide the Streamlit "running" spinner/status only — not progress bars we use */
+div[class*="StatusWidget"],
+[data-testid="stStatusWidget"] { display: none !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# JavaScript MutationObserver — resets any inline opacity Streamlit injects
-# during reruns that CSS alone can't override (inline styles beat !important).
-import streamlit.components.v1 as _components
-_components.html("""
-<script>
-(function() {
-  var WATCH = [
-    '[data-testid="stMain"]',
-    '[data-testid="stMainBlockContainer"]',
-    '[data-testid="stAppViewContainer"]',
-    '[data-testid="stVerticalBlock"]',
-    'section[tabindex="0"]'
-  ];
-  function fixOpacity(el) {
-    if (el && el.style && el.style.opacity !== '' && el.style.opacity !== '1') {
-      el.style.opacity = '1';
-    }
-  }
-  function observeEl(el) {
-    if (!el) return;
-    fixOpacity(el);
-    new MutationObserver(function(muts) {
-      muts.forEach(function(m) {
-        if (m.attributeName === 'style' || m.attributeName === 'class') {
-          fixOpacity(m.target);
-        }
-      });
-    }).observe(el, { attributes: true, attributeFilter: ['style','class'] });
-  }
-  function init() {
-    WATCH.forEach(function(sel) {
-      document.querySelectorAll(sel).forEach(observeEl);
-    });
-  }
-  // Run now and again once Streamlit has rendered its DOM
-  init();
-  setTimeout(init, 500);
-  setTimeout(init, 1500);
-})();
-</script>
-""", height=0)
+# (No JS iframe needed — CSS @keyframes animation handles anti-dim correctly)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # UI helpers
@@ -827,7 +829,7 @@ with st.sidebar:
         st.rerun()
 
     # ── Database connection status ────────────────────────────────────────
-    _db_ok, _db_msg, _db_backend = test_connection()
+    _db_ok, _db_msg, _db_backend = _cached_db_status()
     if _db_ok:
         st.markdown(
             "<div style='background:#052e16;border:1px solid #166534;"
@@ -873,7 +875,7 @@ with st.sidebar:
     _brevo_sidebar = st.secrets.get("brevo_key", "") or st.session_state.get("s_brevo", "")
     if _brevo_sidebar:
         try:
-            _today = brevo_sender.get_today_stats(_brevo_sidebar)
+            _today = _cached_brevo_stats(_brevo_sidebar)
             _used  = int(_today.get("requests", 0))
             _limit = 300
             _left  = max(0, _limit - _used)
@@ -911,8 +913,7 @@ with st.sidebar:
     _serper_sidebar = st.secrets.get("serper_key", "") or st.session_state.get("s_serper", "")
     if _serper_sidebar:
         try:
-            from scraper import get_serper_credits as _get_sc
-            _sc = _get_sc(_serper_sidebar)
+            _sc = _cached_serper_credits(_serper_sidebar)
             if _sc:
                 _sc_left  = int(_sc.get("credits", 0))
                 _sc_limit = 2500   # Serper free tier
