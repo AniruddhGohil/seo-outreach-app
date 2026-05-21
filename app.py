@@ -247,20 +247,23 @@ def _login_page() -> bool:
     if st.session_state.get("_authenticated"):
         return True
 
-    # ── 2. Restore from persistent browser cookie ─────────────────────────
-    try:
-        _cm = _get_cookie_manager()
-        _saved = _cm.get(_COOKIE_NAME)
-        if _saved:
-            _parts = _saved.split("|", 1)
-            if len(_parts) == 2:
-                _c_email, _c_name = _parts
-                st.session_state["_authenticated"] = True
-                st.session_state["_user_email"]    = _c_email
-                st.session_state["_user_name"]     = _c_name
-                return True
-    except Exception:
-        pass
+    # ── 2. Skip cookie if user explicitly signed out ───────────────────────
+    # cookie.delete() is async JS — rerun fires before deletion completes,
+    # so we guard with a session flag set at sign-out time.
+    if not st.session_state.get("_signed_out"):
+        try:
+            _cm = _get_cookie_manager()
+            _saved = _cm.get(_COOKIE_NAME)
+            if _saved:
+                _parts = _saved.split("|", 1)
+                if len(_parts) == 2:
+                    _c_email, _c_name = _parts
+                    st.session_state["_authenticated"] = True
+                    st.session_state["_user_email"]    = _c_email
+                    st.session_state["_user_name"]     = _c_name
+                    return True
+        except Exception:
+            pass
 
     try:
         CLIENT_ID      = st.secrets["google_client_id"]
@@ -850,12 +853,14 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
     if st.button("Sign out", use_container_width=True):
+        # Delete cookie (async JS — may not complete before rerun)
         try:
             _get_cookie_manager().delete(_COOKIE_NAME)
         except Exception:
             pass
-        for key in ["_authenticated", "_user_email", "_user_name", "google_login_btn"]:
-            st.session_state.pop(key, None)
+        # Clear everything and set signed_out flag to block cookie restore
+        st.session_state.clear()
+        st.session_state["_signed_out"] = True
         st.rerun()
 
     # ── Database connection status ────────────────────────────────────────
