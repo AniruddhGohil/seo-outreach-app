@@ -876,6 +876,43 @@ with st.sidebar:
         except Exception:
             pass
 
+    # ── Serper credit tracker ─────────────────────────────────────────────
+    _serper_sidebar = st.secrets.get("serper_key", "") or st.session_state.get("s_serper", "")
+    if _serper_sidebar:
+        try:
+            from scraper import get_serper_credits as _get_sc
+            _sc = _get_sc(_serper_sidebar)
+            if _sc:
+                _sc_left  = int(_sc.get("credits", 0))
+                _sc_limit = 2500   # Serper free tier
+                _sc_used  = max(0, _sc_limit - _sc_left)
+                _sc_pct   = min(100, int(_sc_used / _sc_limit * 100))
+                _sc_color = "#4ade80" if _sc_pct < 70 else ("#facc15" if _sc_pct < 90 else "#f87171")
+                st.markdown(
+                    f"<div style='background:#0f2027;border:1px solid #1e3a4a;"
+                    f"border-radius:10px;padding:10px 12px;margin:8px 0;'>"
+                    f"<div style='display:flex;justify-content:space-between;"
+                    f"align-items:center;margin-bottom:6px;'>"
+                    f"<span style='font-size:11px;font-weight:700;color:#94a3b8;"
+                    f"letter-spacing:0.5px;'>🔍 SERPER CREDITS</span>"
+                    f"<span style='font-size:11px;font-weight:700;"
+                    f"color:{_sc_color};'>{_sc_left:,} left</span></div>"
+                    f"<div style='background:#1e293b;border-radius:99px;height:5px;"
+                    f"overflow:hidden;margin-bottom:6px;'>"
+                    f"<div style='width:{_sc_pct}%;height:5px;"
+                    f"background:{_sc_color};border-radius:99px;'></div></div>"
+                    f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
+                    f"<span style='font-size:11px;color:#475569;'>"
+                    f"{_sc_used:,} used of {_sc_limit:,}</span>"
+                    f"<span style='font-size:10px;color:#334155;"
+                    f"background:#1e293b;border-radius:4px;padding:1px 5px;"
+                    f"font-weight:600;'>Serper free tier</span>"
+                    f"</div></div>",
+                    unsafe_allow_html=True,
+                )
+        except Exception:
+            pass
+
     st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
     st.divider()
 

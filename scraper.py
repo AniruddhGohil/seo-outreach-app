@@ -16,6 +16,31 @@ import requests
 from bs4 import BeautifulSoup
 
 # ---------------------------------------------------------------------------
+# Serper credit checker
+# ---------------------------------------------------------------------------
+
+def get_serper_credits(api_key: str) -> dict:
+    """
+    Return remaining Serper credits.
+    Response: {"credits": 2450}
+    Returns {} on failure.
+    """
+    if not api_key:
+        return {}
+    try:
+        r = requests.get(
+            "https://google.serper.dev/credits",
+            headers={"X-API-KEY": api_key},
+            timeout=8,
+        )
+        if r.status_code == 200:
+            return r.json()
+    except Exception:
+        pass
+    return {}
+
+
+# ---------------------------------------------------------------------------
 # HTTP helpers
 # ---------------------------------------------------------------------------
 
