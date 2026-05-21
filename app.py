@@ -2554,30 +2554,52 @@ with tab_analytics:
             cc = df_all.groupby("country").size().reset_index(name="count")
             cc = cc.sort_values("count", ascending=False).head(12)
             cc = cc.sort_values("count", ascending=True)  # flip for horizontal bar
-            # Colour gradient: darkest bar = most leads
             _n = max(1, len(cc))
             _cc_colors = [
-                f"rgba(79,70,229,{0.35 + 0.65 * i / _n})" for i in range(_n)
+                f"rgba(79,70,229,{0.40 + 0.60 * i / _n})" for i in range(_n)
             ]
+            # Compute a sensible height: min 52px per bar, min total 200px
+            _cc_h = max(200, _n * 52)
             fig_cc = go.Figure(go.Bar(
                 x=cc["count"],
                 y=cc["country"],
                 orientation="h",
-                marker=dict(color=_cc_colors, line=dict(width=0)),
+                marker=dict(
+                    color=_cc_colors,
+                    line=dict(width=0),
+                    cornerradius=4,
+                ),
                 text=cc["count"],
-                textposition="outside",
-                textfont=dict(size=11, color="#374151"),
+                textposition="inside",
+                insidetextanchor="end",
+                textfont=dict(size=12, color="white", family="Inter, sans-serif"),
                 hovertemplate="<b>%{y}</b><br>%{x} leads<extra></extra>",
+                width=[0.55] * _n,   # bar thickness (0–1 in category units)
             ))
-            _chart_layout(fig_cc, height=max(280, len(cc) * 38))
-            fig_cc.update_xaxes(showticklabels=False, showgrid=False)
-            fig_cc.update_yaxes(tickfont=dict(size=12, color="#374151"))
+            fig_cc.update_layout(
+                height=_cc_h,
+                margin=dict(l=8, r=8, t=8, b=8),
+                paper_bgcolor="white",
+                plot_bgcolor="white",
+                bargap=0.35,
+                font=dict(family="Inter, sans-serif", size=12, color="#374151"),
+                hoverlabel=dict(
+                    bgcolor="white", bordercolor="#e2e8f0",
+                    font=dict(family="Inter, sans-serif", size=12),
+                ),
+            )
+            fig_cc.update_xaxes(showticklabels=False, showgrid=False, zeroline=False)
+            fig_cc.update_yaxes(
+                tickfont=dict(size=12, color="#374151"),
+                showgrid=False, zeroline=False,
+            )
             st.plotly_chart(fig_cc, use_container_width=True, config=_CHART_CFG)
 
-        # ── Leads by Status — donut chart ─────────────────────────────────────
+        # ── Leads by Status — horizontal bar (cleaner than donut in narrow col) ──
         with ch2:
             _card("📊 Leads by Status")
             sc_df = df_all.groupby("status").size().reset_index(name="count")
+            sc_df = sc_df.sort_values("count", ascending=True)
             _sc_colors = {
                 "new":      "#6366f1",
                 "sent":     "#10b981",
@@ -2593,40 +2615,40 @@ with tab_analytics:
                 "failed": "Failed", "queued": "Queued", "bounced": "Bounced",
                 "replied": "Replied", "skipped": "Skipped",
             }
-            fig_sc = go.Figure(go.Pie(
-                labels=[_sc_labels.get(s, s) for s in sc_df["status"]],
-                values=sc_df["count"],
-                hole=0.55,
+            _ns = max(1, len(sc_df))
+            _sc_h = max(200, _ns * 52)
+            fig_sc = go.Figure(go.Bar(
+                x=sc_df["count"],
+                y=[_sc_labels.get(s, s) for s in sc_df["status"]],
+                orientation="h",
                 marker=dict(
-                    colors=[_sc_colors.get(s, "#6366f1") for s in sc_df["status"]],
-                    line=dict(color="white", width=2),
+                    color=[_sc_colors.get(s, "#6366f1") for s in sc_df["status"]],
+                    line=dict(width=0),
+                    cornerradius=4,
                 ),
-                textinfo="label+percent",
-                textfont=dict(size=12),
-                hovertemplate="<b>%{label}</b><br>%{value} leads (%{percent})<extra></extra>",
-                pull=[0.04] * len(sc_df),
+                text=sc_df["count"],
+                textposition="inside",
+                insidetextanchor="end",
+                textfont=dict(size=12, color="white", family="Inter, sans-serif"),
+                hovertemplate="<b>%{y}</b><br>%{x} leads<extra></extra>",
+                width=[0.55] * _ns,
             ))
-            total_leads = int(sc_df["count"].sum())
-            fig_sc.add_annotation(
-                text=f"<b>{total_leads}</b><br><span style='font-size:10px'>total</span>",
-                x=0.5, y=0.5, showarrow=False,
-                font=dict(size=16, color="#0f172a"),
-                align="center",
-            )
             fig_sc.update_layout(
-                height=300,
-                margin=dict(l=8, r=8, t=24, b=8),
+                height=_sc_h,
+                margin=dict(l=8, r=8, t=8, b=8),
                 paper_bgcolor="white",
+                plot_bgcolor="white",
+                bargap=0.35,
                 font=dict(family="Inter, sans-serif", size=12, color="#374151"),
-                showlegend=True,
-                legend=dict(
-                    orientation="v", x=1.02, y=0.5,
-                    font=dict(size=11), bgcolor="white",
-                ),
                 hoverlabel=dict(
                     bgcolor="white", bordercolor="#e2e8f0",
                     font=dict(family="Inter, sans-serif", size=12),
                 ),
+            )
+            fig_sc.update_xaxes(showticklabels=False, showgrid=False, zeroline=False)
+            fig_sc.update_yaxes(
+                tickfont=dict(size=12, color="#374151"),
+                showgrid=False, zeroline=False,
             )
             st.plotly_chart(fig_sc, use_container_width=True, config=_CHART_CFG)
 
@@ -2667,21 +2689,41 @@ with tab_analytics:
         kc = kc.sort_values("count", ascending=True)
         _nk = max(1, len(kc))
         _kc_colors = [
-            f"rgba(16,185,129,{0.35 + 0.65 * i / _nk})" for i in range(_nk)
+            f"rgba(16,185,129,{0.40 + 0.60 * i / _nk})" for i in range(_nk)
         ]
         fig_kc = go.Figure(go.Bar(
             x=kc["count"],
             y=kc["keyword"],
             orientation="h",
-            marker=dict(color=_kc_colors, line=dict(width=0)),
+            marker=dict(
+                color=_kc_colors,
+                line=dict(width=0),
+                cornerradius=4,
+            ),
             text=kc["count"],
-            textposition="outside",
-            textfont=dict(size=11, color="#374151"),
+            textposition="inside",
+            insidetextanchor="end",
+            textfont=dict(size=12, color="white", family="Inter, sans-serif"),
             hovertemplate="<b>%{y}</b><br>%{x} leads<extra></extra>",
+            width=[0.55] * _nk,
         ))
-        _chart_layout(fig_kc, height=max(280, len(kc) * 34))
-        fig_kc.update_xaxes(showticklabels=False, showgrid=False)
-        fig_kc.update_yaxes(tickfont=dict(size=11, color="#374151"))
+        fig_kc.update_layout(
+            height=max(200, _nk * 48),
+            margin=dict(l=8, r=8, t=8, b=8),
+            paper_bgcolor="white",
+            plot_bgcolor="white",
+            bargap=0.35,
+            font=dict(family="Inter, sans-serif", size=12, color="#374151"),
+            hoverlabel=dict(
+                bgcolor="white", bordercolor="#e2e8f0",
+                font=dict(family="Inter, sans-serif", size=12),
+            ),
+        )
+        fig_kc.update_xaxes(showticklabels=False, showgrid=False, zeroline=False)
+        fig_kc.update_yaxes(
+            tickfont=dict(size=11, color="#374151"),
+            showgrid=False, zeroline=False,
+        )
         st.plotly_chart(fig_kc, use_container_width=True, config=_CHART_CFG)
 
     # ── Brevo email performance ───────────────────────────────────────────────
