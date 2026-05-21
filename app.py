@@ -15,6 +15,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 from streamlit_oauth import OAuth2Component
+import extra_streamlit_components as stx
 
 import bg_state
 from database import (
@@ -233,9 +234,33 @@ def _decode_id_token(id_token: str) -> dict:
         return {}
 
 
+@st.cache_resource
+def _get_cookie_manager():
+    return stx.CookieManager(key="_auth_cookies")
+
+_COOKIE_NAME = "seo_outreach_auth"
+_COOKIE_DAYS = 7
+
+
 def _login_page() -> bool:
+    # ── 1. Already authenticated this session ─────────────────────────────
     if st.session_state.get("_authenticated"):
         return True
+
+    # ── 2. Restore from persistent browser cookie ─────────────────────────
+    try:
+        _cm = _get_cookie_manager()
+        _saved = _cm.get(_COOKIE_NAME)
+        if _saved:
+            _parts = _saved.split("|", 1)
+            if len(_parts) == 2:
+                _c_email, _c_name = _parts
+                st.session_state["_authenticated"] = True
+                st.session_state["_user_email"]    = _c_email
+                st.session_state["_user_name"]     = _c_name
+                return True
+    except Exception:
+        pass
 
     try:
         CLIENT_ID      = st.secrets["google_client_id"]
@@ -380,6 +405,16 @@ def _login_page() -> bool:
             st.session_state["_authenticated"] = True
             st.session_state["_user_email"]    = email
             st.session_state["_user_name"]     = name
+            # Persist login in browser cookie so refresh doesn't log out
+            try:
+                from datetime import timedelta
+                _get_cookie_manager().set(
+                    _COOKIE_NAME,
+                    f"{email}|{name}",
+                    expires_at=datetime.now() + timedelta(days=_COOKIE_DAYS),
+                )
+            except Exception:
+                pass
             st.rerun()
         else:
             st.error(f"🚫 Access denied for `{email}`. This account has not been granted access.")
@@ -815,6 +850,10 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
     if st.button("Sign out", use_container_width=True):
+        try:
+            _get_cookie_manager().delete(_COOKIE_NAME)
+        except Exception:
+            pass
         for key in ["_authenticated", "_user_email", "_user_name", "google_login_btn"]:
             st.session_state.pop(key, None)
         st.rerun()
