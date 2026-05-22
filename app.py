@@ -1693,11 +1693,11 @@ junk removal, Atlanta, United States"""
                                     help="ON = visits each website to find email (slower but ready to send).\n"
                                          "OFF = saves businesses only, no email lookup (much faster).")
         with _bp3:
-            _threads = st.select_slider("Threads", options=[4, 8, 12, 16], value=8, key="batch_threads",
-                                        help="Parallel email extractions. Higher = faster but uses more memory.")
+            _threads = st.select_slider("Threads", options=[4, 8, 12, 16, 24, 32], value=16, key="batch_threads",
+                                        help="Parallel email extractions. Higher = faster. 16–32 recommended for batch.")
 
         _b_lines = [l.strip() for l in batch_text.strip().splitlines() if l.strip() and not l.startswith("#")]
-        _est_mins = max(1, int(len(_b_lines) * batch_pages * 2 / (_threads if batch_email else 60)))
+        _est_mins = max(1, int(len(_b_lines) * batch_pages * 20 * 6 / ((_threads if batch_email else 300) * 60)))
         st.caption(
             f"{'📋 ' + str(len(_b_lines)) + ' searches queued' if _b_lines else '⬆ Fill in the list above or pick a template'}"
             + (f" · ⏱ ~{_est_mins} min estimated" if _b_lines else "")
@@ -1789,7 +1789,9 @@ junk removal, Atlanta, United States"""
                         biz["email_source"] = None
                         biz["status"] = "no_email"
                         return biz
-                    em, es = find_email_on_website(biz["website"], use_guess_fallback=False)
+                    em, es = find_email_on_website(biz["website"],
+                                                   use_guess_fallback=False,
+                                                   fast_mode=True)
                     biz["email"] = em
                     biz["email_source"] = es
                     if not em:
