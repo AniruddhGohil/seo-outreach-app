@@ -41,6 +41,10 @@ SUBJECT_LINES = [
     "{business_name} – visibility check",
     "Something I spotted about {business_name}",
     "{business_name} – a thought on local search",
+    "{business_name} – the window is closing",
+    "Is {business_name} ready for the AI-search shift?",
+    "{business_name} – before your competitors move",
+    "Who Google recommends is changing — {business_name}",
 ]
 
 ECOMM_SUBJECT_LINES = [
@@ -172,6 +176,30 @@ def _proof_text(case_study: str) -> str:
     return f"Recent result: {case_study}\n\n"
 
 
+# ── AI-era insight block — shared across templates ────────────────────────────
+
+_AI_ERA_HTML = """
+<div style="background:#f5f3ff;border-left:3px solid #7c3aed;border-radius:0 8px 8px 0;
+            padding:14px 18px;margin:18px 0;font-size:14px;color:#3b0764;line-height:1.7;">
+  <strong style="display:block;margin-bottom:6px;color:#4c1d95;">
+    The businesses that adapt early gain a massive competitive advantage.
+  </strong>
+  In the AI-search era, visibility is no longer just about appearing in search
+  results. It&#39;s about becoming the source Google trusts enough to <em>cite,
+  summarise and recommend</em>. That kind of authority may become more valuable
+  than rankings themselves.
+</div>
+"""
+
+_AI_ERA_TEXT = (
+    "The businesses that adapt early gain a massive competitive advantage.\n"
+    "In the AI-search era, visibility is no longer just about appearing in\n"
+    "search results — it's about becoming the source Google trusts enough to\n"
+    "cite, summarise and recommend. That may become more valuable than\n"
+    "rankings themselves.\n\n"
+)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # TEMPLATE 1 — SHORT
 # ─────────────────────────────────────────────────────────────────────────────
@@ -188,13 +216,21 @@ def build_short_html(business_name: str, sender_name: str, sender_email: str,
 
 <p>I was searching for services in your area and noticed
 <strong>{business_name}</strong> isn't showing up on page 1 of Google
-— or in AI tools like ChatGPT and Gemini, where more and more customers
-are now searching for local businesses.</p>
+— or in AI tools like ChatGPT and Gemini, where more customers now
+discover local businesses.</p>
+
+<p style="font-size:14px;color:#4c1d95;background:#f5f3ff;
+          border-left:3px solid #7c3aed;border-radius:0 6px 6px 0;
+          padding:10px 14px;margin:14px 0;line-height:1.65;">
+  The businesses that adapt early gain a massive competitive advantage —
+  because in the AI-search era, being the source Google <em>cites and
+  recommends</em> may matter more than rankings alone.
+</p>
 
 {_proof_html(case_study)}
 
 <p>I help businesses improve exactly that. Would you be open to a
-quick 10-minute call to see what's holding your rankings back?</p>
+quick 10-minute call to see what's holding you back?</p>
 
 <p>No obligation — just an honest look at where things stand.</p>
 
@@ -211,10 +247,13 @@ def _build_short_text(business_name: str, sender_name: str, sender_email: str,
         f"Hi {business_name} team,\n\n"
         f"I was searching for services in your area and noticed {business_name} isn't\n"
         f"showing up on page 1 of Google — or in AI tools like ChatGPT and Gemini,\n"
-        f"where more customers now search for local businesses.\n\n"
+        f"where more customers now discover local businesses.\n\n"
+        f"The businesses that adapt early gain a massive competitive advantage.\n"
+        f"In the AI-search era, being the source Google cites and recommends\n"
+        f"may matter more than rankings alone.\n\n"
         + _proof_text(case_study) +
         f"I help businesses improve exactly that. Would you be open to a quick\n"
-        f"10-minute call to see what's holding your rankings back?\n\n"
+        f"10-minute call to see what's holding you back?\n\n"
         f"No obligation — just an honest look at where things stand.\n\n"
         + _sig_text(sender_name, sender_email, portfolio_url)
         + _FOOTER_TEXT.format(business_name=business_name)
@@ -245,6 +284,8 @@ digital strategy.</p>
 <p><strong>{business_name}</strong> has real potential to rank significantly
 higher on Google and to start appearing in AI tools like ChatGPT, Gemini and
 Perplexity — where customers increasingly discover businesses.</p>
+
+{_AI_ERA_HTML}
 
 {_proof_html(case_study)}
 
@@ -277,7 +318,8 @@ def _build_story_text(business_name: str, sender_name: str, sender_email: str,
         f"{business_name} has real potential to rank higher on Google and to start\n"
         f"appearing in AI tools like ChatGPT and Gemini where customers increasingly\n"
         f"discover businesses.\n\n"
-        + _proof_text(case_study) +
+        + _AI_ERA_TEXT +
+        _proof_text(case_study) +
         f"Most businesses I work with see measurable growth in enquiries within\n"
         f"60-90 days. No lock-in contracts.\n\n"
         f"I would love to put together a complimentary visibility audit for\n"
@@ -332,6 +374,8 @@ with how fast search is changing in 2025.</p>
   results so customers choose you before clicking anywhere.</p>
 </div>
 
+{_AI_ERA_HTML}
+
 <div class="highlight">
   📦 Tailored packages · No lock-in contracts · Results in 60–90 days
 </div>
@@ -363,6 +407,7 @@ def _build_detailed_text(business_name: str, sender_name: str, sender_email: str
         f"Most competitors are not there yet.\n\n"
         f"AEO – Appear in Featured Snippets and voice search so customers choose\n"
         f"you first.\n\n"
+        + _AI_ERA_TEXT +
         f"Tailored packages, no lock-in contracts — pricing shared after a quick chat.\n\n"
         f"I would like to offer {business_name} a complimentary visibility audit —\n"
         f"an honest look at where you stand and what we can improve. No commitment.\n\n"
@@ -466,14 +511,20 @@ def build_followup_html(business_name: str, sender_name: str, sender_email: str,
 
 <p>Hi {business_name} team,</p>
 
-<p>Just following up on my note from a few days ago in case it got
-buried in your inbox.</p>
+<p>Just following up on my note from a few days ago — I wanted to add
+one more thought in case it is helpful.</p>
+
+<div style="background:#f5f3ff;border-left:3px solid #7c3aed;border-radius:0 8px 8px 0;
+            padding:14px 18px;margin:16px 0;font-size:14px;color:#3b0764;line-height:1.7;">
+  The businesses moving now on AI-search positioning are the ones locking
+  in that visibility advantage. Once competitors figure it out, the window
+  closes — and it tends to close fast.
+</div>
 
 <p>I genuinely think there is a quick win available for
-<strong>{business_name}</strong> in search — and I would hate for a
-competitor to get there first.</p>
-
-<p>Happy to keep it to 10 minutes. Would any time this week work for you?</p>
+<strong>{business_name}</strong>, and I would hate for a competitor to
+get there first. Happy to keep it to 10 minutes — would any time this
+week work?</p>
 
 {_sig_html(sender_name, sender_email, portfolio_url)}
 
@@ -486,10 +537,14 @@ def _build_followup_text(business_name: str, sender_name: str, sender_email: str
                           portfolio_url: str = "", case_study: str = "") -> str:
     return (
         f"Hi {business_name} team,\n\n"
-        f"Just following up on my note from a few days ago in case it got buried.\n\n"
-        f"I genuinely think there is a quick win available for {business_name} in\n"
-        f"search — and I would hate for a competitor to get there first.\n\n"
-        f"Happy to keep it to 10 minutes. Would any time this week work?\n\n"
+        f"Just following up on my note from a few days ago — I wanted to add\n"
+        f"one more thought in case it is helpful.\n\n"
+        f"The businesses moving now on AI-search positioning are the ones locking\n"
+        f"in that visibility advantage. Once competitors figure it out, the window\n"
+        f"closes — and it tends to close fast.\n\n"
+        f"I genuinely think there is a quick win available for {business_name},\n"
+        f"and I would hate for a competitor to get there first.\n"
+        f"Happy to keep it to 10 minutes — would any time this week work?\n\n"
         + _sig_text(sender_name, sender_email, portfolio_url)
         + _FOOTER_TEXT.format(business_name=business_name)
     )
