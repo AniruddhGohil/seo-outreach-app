@@ -1685,8 +1685,8 @@ junk removal, Atlanta, United States"""
 
         _bp1, _bp2, _bp3 = st.columns([3, 1, 1])
         with _bp1:
-            batch_pages = st.slider("Pages per search", 1, 10, 3, key="batch_pages",
-                                    help="3 pages ≈ 30 businesses per keyword. "
+            batch_pages = st.slider("Pages per search", 1, 10, 2, key="batch_pages",
+                                    help="2 pages ≈ 40 businesses per keyword. "
                                          "Lower = faster batch, higher = more leads per search.")
         with _bp2:
             batch_email = st.toggle("Auto-extract emails", value=True, key="batch_email",
