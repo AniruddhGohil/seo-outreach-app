@@ -44,6 +44,26 @@ _USER_AGENTS = [
 
 _EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")
 
+# File extensions that are never valid email TLDs — image/media/code filenames
+# that contain '@' in their path get matched by the regex otherwise.
+_INVALID_EMAIL_EXTENSIONS = {
+    # Images
+    "webp", "jpg", "jpeg", "png", "gif", "svg", "ico", "bmp", "tiff", "tif",
+    "avif", "heic", "heif", "raw",
+    # Fonts
+    "woff", "woff2", "ttf", "otf", "eot",
+    # Scripts / styles
+    "js", "jsx", "ts", "tsx", "css", "scss", "less", "map",
+    # Documents / data
+    "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "csv", "xml", "json",
+    # Media
+    "mp4", "mp3", "mov", "avi", "webm", "ogg", "wav", "flac",
+    # Archives
+    "zip", "gz", "tar", "rar", "7z",
+    # Misc web assets
+    "php", "asp", "aspx", "html", "htm",
+}
+
 # Domains that are never real business contacts
 _SKIP_DOMAINS = {
     "example.com", "test.com", "domain.com", "email.com",
@@ -170,6 +190,10 @@ def _clean_email(raw: str) -> Optional[str]:
         return None
     domain = email.split("@")[1]
     prefix = email.split("@")[0]
+    # Reject if the TLD is a file extension (e.g. service@image.webp, foo@bar.png)
+    tld = domain.rsplit(".", 1)[-1]
+    if tld in _INVALID_EMAIL_EXTENSIONS:
+        return None
     if any(domain == d or domain.endswith("." + d) for d in _SKIP_DOMAINS):
         return None
     if prefix in _SKIP_PREFIXES:
