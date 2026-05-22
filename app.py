@@ -1367,19 +1367,265 @@ eyebrow threading, TW3 Hounslow, United Kingdom
 tanning salon, SM1 Sutton, United Kingdom
 skin clinic, EN1 Enfield, United Kingdom"""
 
+    # ── USA batch templates ───────────────────────────────────────────────────
+    _USA_TRADES = """\
+HVAC contractor, Houston, United States
+HVAC contractor, Phoenix, United States
+HVAC contractor, Atlanta, United States
+HVAC contractor, Nashville, United States
+HVAC contractor, Charlotte, United States
+plumber, Dallas, United States
+plumber, Indianapolis, United States
+plumber, Columbus, United States
+plumber, Louisville, United States
+plumber, Memphis, United States
+roofing contractor, Denver, United States
+roofing contractor, Oklahoma City, United States
+roofing contractor, Tulsa, United States
+roofing contractor, Omaha, United States
+roofing contractor, Raleigh, United States
+electrician, Richmond, United States
+electrician, Baltimore, United States
+electrician, Milwaukee, United States
+junk removal, Houston, United States
+junk removal, Atlanta, United States
+garage door repair, Phoenix, United States
+garage door repair, Nashville, United States
+tree service, Charlotte, United States
+tree service, Raleigh, United States
+pest control, Memphis, United States"""
+
+    _USA_PROFESSIONALS = """\
+personal injury attorney, Houston, United States
+personal injury attorney, Atlanta, United States
+personal injury attorney, Phoenix, United States
+personal injury attorney, Nashville, United States
+personal injury attorney, Charlotte, United States
+divorce attorney, Dallas, United States
+divorce attorney, Indianapolis, United States
+divorce attorney, Columbus, United States
+divorce attorney, Memphis, United States
+divorce attorney, Louisville, United States
+DUI attorney, Denver, United States
+DUI attorney, Baltimore, United States
+DUI attorney, Oklahoma City, United States
+workers compensation attorney, Houston, United States
+workers compensation attorney, Atlanta, United States
+bankruptcy attorney, Phoenix, United States
+bankruptcy attorney, Nashville, United States
+immigration attorney, Dallas, United States
+immigration attorney, Charlotte, United States
+tax accountant, Houston, United States
+financial advisor, Atlanta, United States
+financial advisor, Indianapolis, United States
+mortgage broker, Columbus, United States
+real estate agent, Raleigh, United States
+insurance agent, Richmond, United States"""
+
+    _USA_HEALTHCARE = """\
+dentist, Houston, United States
+dentist, Phoenix, United States
+dentist, Atlanta, United States
+dentist, Nashville, United States
+dentist, Charlotte, United States
+orthodontist, Dallas, United States
+orthodontist, Indianapolis, United States
+orthodontist, Columbus, United States
+chiropractor, Denver, United States
+chiropractor, Louisville, United States
+chiropractor, Memphis, United States
+physical therapist, Houston, United States
+physical therapist, Atlanta, United States
+optometrist, Phoenix, United States
+optometrist, Nashville, United States
+urgent care clinic, Dallas, United States
+urgent care clinic, Charlotte, United States
+dermatologist, Houston, United States
+dermatologist, Raleigh, United States
+weight loss clinic, Atlanta, United States
+weight loss clinic, Phoenix, United States
+hearing aid clinic, Indianapolis, United States
+podiatrist, Columbus, United States
+pain management clinic, Houston, United States
+cosmetic surgeon, Nashville, United States"""
+
+    _USA_BEAUTY = """\
+hair salon, Houston, United States
+hair salon, Phoenix, United States
+hair salon, Atlanta, United States
+nail salon, Dallas, United States
+nail salon, Nashville, United States
+nail salon, Charlotte, United States
+barber shop, Houston, United States
+barber shop, Atlanta, United States
+lash extensions, Phoenix, United States
+lash extensions, Dallas, United States
+microblading, Houston, United States
+microblading, Nashville, United States
+med spa, Atlanta, United States
+med spa, Charlotte, United States
+botox clinic, Houston, United States
+botox clinic, Phoenix, United States
+laser hair removal, Dallas, United States
+laser hair removal, Raleigh, United States
+teeth whitening, Houston, United States
+teeth whitening, Atlanta, United States
+waxing salon, Phoenix, United States
+spray tan, Nashville, United States
+permanent makeup, Charlotte, United States
+eyebrow threading, Dallas, United States
+hair extensions, Houston, United States"""
+
+    _HIGH_VALUE_USA = """\
+HVAC contractor, Houston, United States
+HVAC contractor, Phoenix, United States
+HVAC contractor, Atlanta, United States
+HVAC contractor, Dallas, United States
+HVAC contractor, Nashville, United States
+roofing contractor, Houston, United States
+roofing contractor, Phoenix, United States
+roofing contractor, Denver, United States
+roofing contractor, Atlanta, United States
+roofing contractor, Charlotte, United States
+personal injury attorney, Houston, United States
+personal injury attorney, Atlanta, United States
+personal injury attorney, Dallas, United States
+personal injury attorney, Phoenix, United States
+personal injury attorney, Nashville, United States
+dentist, Houston, United States
+dentist, Phoenix, United States
+dentist, Dallas, United States
+dentist, Atlanta, United States
+dentist, Nashville, United States
+plumber, Houston, United States
+plumber, Phoenix, United States
+plumber, Dallas, United States
+plumber, Atlanta, United States
+plumber, Indianapolis, United States
+chiropractor, Houston, United States
+chiropractor, Phoenix, United States
+chiropractor, Denver, United States
+chiropractor, Atlanta, United States
+chiropractor, Nashville, United States
+pest control, Houston, United States
+pest control, Phoenix, United States
+pest control, Tampa, United States
+pest control, Atlanta, United States
+pest control, Orlando, United States
+junk removal, Houston, United States
+junk removal, Phoenix, United States
+junk removal, Dallas, United States
+junk removal, Atlanta, United States
+junk removal, Charlotte, United States
+garage door repair, Houston, United States
+garage door repair, Phoenix, United States
+garage door repair, Denver, United States
+garage door repair, Atlanta, United States
+garage door repair, Nashville, United States
+pool service, Houston, United States
+pool service, Phoenix, United States
+pool service, Tampa, United States
+pool service, Orlando, United States
+pool service, Jacksonville, United States"""
+
+    _SUNBELT_USA = """\
+HVAC contractor, Orlando, United States
+HVAC contractor, Tampa, United States
+HVAC contractor, Jacksonville, United States
+HVAC contractor, Fort Lauderdale, United States
+HVAC contractor, Sarasota, United States
+roofing contractor, Orlando, United States
+roofing contractor, Tampa, United States
+roofing contractor, Jacksonville, United States
+roofing contractor, Fort Lauderdale, United States
+roofing contractor, Fort Myers, United States
+pool service, Orlando, United States
+pool service, Tampa, United States
+pool service, Jacksonville, United States
+pool service, Sarasota, United States
+pool service, Clearwater, United States
+pest control, Orlando, United States
+pest control, Tampa, United States
+pest control, Jacksonville, United States
+pest control, Fort Lauderdale, United States
+pest control, Fort Myers, United States
+personal injury attorney, Orlando, United States
+personal injury attorney, Tampa, United States
+personal injury attorney, Jacksonville, United States
+personal injury attorney, Fort Lauderdale, United States
+personal injury attorney, Sarasota, United States
+dentist, Orlando, United States
+dentist, Tampa, United States
+dentist, Jacksonville, United States
+dentist, Fort Lauderdale, United States
+dentist, Clearwater, United States
+plumber, Houston, United States
+plumber, San Antonio, United States
+plumber, Austin, United States
+plumber, Phoenix, United States
+plumber, Las Vegas, United States
+HVAC contractor, Houston, United States
+HVAC contractor, San Antonio, United States
+HVAC contractor, Phoenix, United States
+HVAC contractor, Las Vegas, United States
+HVAC contractor, Atlanta, United States
+roofing contractor, Houston, United States
+roofing contractor, San Antonio, United States
+roofing contractor, Phoenix, United States
+roofing contractor, Las Vegas, United States
+roofing contractor, Atlanta, United States
+junk removal, Orlando, United States
+junk removal, Tampa, United States
+junk removal, Houston, United States
+junk removal, Phoenix, United States
+junk removal, Atlanta, United States"""
+
     with st.expander("⚡ Batch Search — run multiple keywords at once", expanded=False):
         st.markdown(
             "<p style='font-size:13px;color:#6b7280;margin:0 0 12px;'>"
-            "Enter one search per line: <code>keyword, city/postcode, country</code>. "
+            "Enter one search per line: <code>keyword, city, country</code>. "
             "Country defaults to United Kingdom if omitted. "
             "Pick a template or write your own combinations.</p>",
             unsafe_allow_html=True,
         )
 
-        # Template buttons — 2 rows of 4
+        # ── USA templates ──────────────────────────────────────────────────────
+        st.markdown("<p style='font-size:11px;font-weight:600;color:#3b82f6;"
+                    "text-transform:uppercase;letter-spacing:0.5px;margin:0 0 6px;'>"
+                    "🇺🇸 USA templates</p>", unsafe_allow_html=True)
+        u1, u2, u3, u4 = st.columns(4)
+        with u1:
+            if st.button("🔧 USA Trades", use_container_width=True, key="tpl_usatrades"):
+                st.session_state["batch_text"] = _USA_TRADES
+        with u2:
+            if st.button("⚖️ USA Attorneys & Pro", use_container_width=True, key="tpl_usapro"):
+                st.session_state["batch_text"] = _USA_PROFESSIONALS
+        with u3:
+            if st.button("🏥 USA Healthcare", use_container_width=True, key="tpl_usahealth"):
+                st.session_state["batch_text"] = _USA_HEALTHCARE
+        with u4:
+            if st.button("💅 USA Beauty & Spas", use_container_width=True, key="tpl_usabeauty"):
+                st.session_state["batch_text"] = _USA_BEAUTY
+
+        st.markdown("<p style='font-size:11px;font-weight:600;color:#3b82f6;"
+                    "text-transform:uppercase;letter-spacing:0.5px;margin:8px 0 6px;'>"
+                    "🏆 USA mega-batches</p>", unsafe_allow_html=True)
+        m1, m2 = st.columns(2)
+        with m1:
+            if st.button("🏆 High-Value USA (50 searches)", use_container_width=True,
+                         key="tpl_highvalue_usa"):
+                st.session_state["batch_text"] = _HIGH_VALUE_USA
+        with m2:
+            if st.button("☀️ Sun Belt + Florida (50 searches)", use_container_width=True,
+                         key="tpl_sunbelt"):
+                st.session_state["batch_text"] = _SUNBELT_USA
+
+        st.divider()
+
+        # ── UK templates ───────────────────────────────────────────────────────
         st.markdown("<p style='font-size:11px;font-weight:600;color:#9ca3af;"
                     "text-transform:uppercase;letter-spacing:0.5px;margin:0 0 6px;'>"
-                    "UK-wide templates</p>", unsafe_allow_html=True)
+                    "🇬🇧 UK-wide templates</p>", unsafe_allow_html=True)
         t1, t2, t3, t4 = st.columns(4)
         with t1:
             if st.button("🔧 UK Trades", use_container_width=True, key="tpl_uktrades"):
