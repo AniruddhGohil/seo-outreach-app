@@ -103,16 +103,19 @@ def _background_send_worker(
             )
             if ok:
                 message_id = result
-                # Sync contact to Brevo CRM
-                try:
-                    brevo_sender.upsert_contact(
-                        brevo_key, recipient,
-                        attributes={"COMPANY": biz_name,
-                                    "CITY": lead.get("city", ""),
-                                    "KEYWORD": lead.get("keyword", "")},
-                    )
-                except Exception:
-                    pass
+                # Sync contact to Brevo CRM only in HTML mode.
+                # In plain-text mode, adding a contact to a Brevo list creates
+                # bulk-sender metadata that leaks to Gmail and pushes into Promotions.
+                if not plain_text_mode:
+                    try:
+                        brevo_sender.upsert_contact(
+                            brevo_key, recipient,
+                            attributes={"COMPANY": biz_name,
+                                        "CITY": lead.get("city", ""),
+                                        "KEYWORD": lead.get("keyword", "")},
+                        )
+                    except Exception:
+                        pass
         else:
             ok, result = _smtp_send_one(
                 sender_email=sender_email,

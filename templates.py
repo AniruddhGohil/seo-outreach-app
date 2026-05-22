@@ -117,17 +117,19 @@ _BASE_CSS = """
   .proof strong { color:#0f172a; }
 """
 
+# Plain-text footer — casual P.S. line, no "unsubscribe" word, no bulk-email
+# patterns. "Unsubscribe" in a plain-text body is a top Gmail Promotions signal.
 _FOOTER_TEXT = (
-    "\n\n---\n"
-    "You are receiving this because {business_name} is publicly listed online.\n"
-    "To stop receiving messages, simply reply with the word Unsubscribe.\n"
+    "\n\nP.S. Not relevant for {business_name} right now? Just reply and say so —"
+    " I will not bother you again.\n"
 )
 
+# HTML footer — slightly more formal but still avoids "you are receiving this
+# because" which Gmail recognises as a bulk-email pattern.
 _FOOTER_HTML = """
   <div class="footer">
-    You are receiving this because <strong>{business_name}</strong> is publicly
-    listed online. To stop receiving messages from us, reply with the word
-    <strong>Unsubscribe</strong> and we will remove you straight away.
+    Not relevant right now? Simply reply and let me know — I will remove
+    <strong>{business_name}</strong> from my list immediately.
   </div>
 """
 
@@ -270,7 +272,7 @@ competitors catch on.</p>
 
 <div class="highlight">
   Most businesses I work with see more enquiries within 60–90 days.
-  No lock-in contracts.
+  Month to month, cancel anytime.
 </div>
 
 <p>I would love to offer {business_name} a complimentary visibility
@@ -303,7 +305,7 @@ def _build_story_text(business_name: str, sender_name: str, sender_email: str,
         f"in that position before competitors catch on.\n\n"
         + _proof_text(case_study) +
         f"Most businesses I work with see more enquiries within 60-90 days.\n"
-        f"No lock-in contracts.\n\n"
+        f"Month to month, cancel anytime.\n\n"
         f"I would love to offer {business_name} a complimentary visibility\n"
         f"audit — 10 minutes, no obligation, just a clear picture of where\n"
         f"things stand and what's possible.\n\n"
@@ -364,7 +366,7 @@ the source Google trusts enough to cite and recommend. That authority,
 once built, is very hard for competitors to take away.</p>
 
 <div class="highlight">
-  📦 Tailored packages · No lock-in contracts · Results in 60–90 days
+  Results in 60–90 days · Month to month · No commitment required
 </div>
 
 <p>I would like to offer <strong>{business_name}</strong> a complimentary
@@ -398,8 +400,8 @@ def _build_detailed_text(business_name: str, sender_name: str, sender_email: str
         f"AI-search era, visibility isn't just about rankings — it's about\n"
         f"becoming the source Google trusts enough to cite and recommend.\n"
         f"That authority, once built, is very hard for competitors to take away.\n\n"
-        f"Tailored packages, no lock-in contracts — results typically in 60-90 days.\n\n"
-        f"I would like to offer {business_name} a complimentary visibility audit —\n"
+        f"Month to month, no commitment — results typically in 60-90 days.\n\n"
+        f"I would like to offer {business_name} a free visibility audit —\n"
         f"no commitment, just an honest look at what can be improved.\n\n"
         f"Would you be open to a quick 15-minute call this week?\n\n"
         + _sig_text(sender_name, sender_email, portfolio_url)
@@ -454,7 +456,7 @@ paying for ads.</p>
   silently suppress rankings for most online stores.</p>
 </div>
 
-<p>I would love to put together a complimentary audit for
+<p>I would love to put together a free audit for
 <strong>{business_name}</strong> — a clear picture of where organic
 revenue is being left on the table.</p>
 
@@ -481,7 +483,7 @@ def _build_ecomm_text(business_name: str, sender_name: str, sender_email: str,
         f"- AI search visibility (ChatGPT, Gemini recommending your store —\n"
         f"  most brands are missing this entirely)\n"
         f"- Technical SEO & site architecture fixes that suppress most stores\n\n"
-        f"I would love to put together a complimentary audit for {business_name} —\n"
+        f"I would love to put together a free audit for {business_name} —\n"
         f"a clear picture of where organic revenue is being left on the table.\n\n"
         f"Open to a quick 15-minute call?\n\n"
         + _sig_text(sender_name, sender_email, portfolio_url, title="E-commerce SEO Specialist")
@@ -553,7 +555,7 @@ def build_followup2_html(business_name: str, sender_name: str, sender_email: str
 
 <p>If the timing is not right, no worries at all. But if you ever want
 to explore how <strong>{business_name}</strong> could show up better in
-Google and AI search, my offer for a complimentary audit stands — just
+Google and AI search, my offer for a free audit stands — just
 reply anytime.</p>
 
 <p>Wishing you a great week.</p>
@@ -572,7 +574,7 @@ def _build_followup2_text(business_name: str, sender_name: str, sender_email: st
         f"I will keep this brief — I do not want to keep filling your inbox.\n\n"
         f"If the timing is not right, no worries. But if you ever want to explore\n"
         f"how {business_name} could show up better in Google and AI search, my\n"
-        f"offer for a complimentary audit stands — just reply anytime.\n\n"
+        f"offer for a free audit stands — just reply anytime.\n\n"
         f"Wishing you a great week.\n\n"
         + _sig_text(sender_name, sender_email, portfolio_url)
         + _FOOTER_TEXT.format(business_name=business_name)
