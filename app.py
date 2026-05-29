@@ -2307,6 +2307,10 @@ def _render_send():
     _section("Send Emails",
              "Only 'New' leads appear here. Once sent, a lead is marked Sent and never emailed again.")
 
+    # Refresh button — fragments don't auto-update when DB changes in another tab
+    if st.button("🔄 Refresh queue", key="send_refresh", help="Reload leads from database"):
+        st.rerun(scope="app")
+
     if not _smtp_ready():
         st.markdown(
             "<div style='background:white;border-radius:12px;padding:32px;text-align:center;"
@@ -2506,7 +2510,8 @@ def _render_send():
                     "<p style='font-size:16px;font-weight:600;color:#111827;margin:0 0 6px;'>"
                     "No leads ready to send</p>"
                     "<p style='font-size:13px;color:#9ca3af;margin:0;'>"
-                    "Go to Find Leads to scrape more businesses.</p>"
+                    "Just ran a batch search? Click <b>Refresh queue</b> above. "
+                    "Otherwise go to Find Leads to scrape more businesses.</p>"
                     "</div>", unsafe_allow_html=True)
         else:
             # Summary stats
