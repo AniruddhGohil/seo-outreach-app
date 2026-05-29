@@ -1610,8 +1610,8 @@ junk removal, Atlanta, United States"""
         st.markdown(
             "<p style='font-size:13px;color:#6b7280;margin:0 0 12px;'>"
             "Enter one search per line: <code>keyword, city, country</code>. "
-            "Country defaults to United Kingdom if omitted. "
-            "Pick a template or write your own combinations.</p>",
+            "For postcode-level targeting use: <code>keyword, SW4 Clapham, United Kingdom</code>. "
+            "Country defaults to United Kingdom if omitted.</p>",
             unsafe_allow_html=True,
         )
 
@@ -1701,7 +1701,7 @@ junk removal, Atlanta, United States"""
             "Search list",
             value=st.session_state.get("batch_text", ""),
             height=220,
-            placeholder="emergency plumber, Birmingham, United Kingdom\nmortgage broker, Leeds, United Kingdom\nprivate dentist, Bristol, United Kingdom",
+            placeholder="emergency plumber, Birmingham, United Kingdom\nHVAC engineer, SW4 Clapham, United Kingdom\nprivate dentist, 560001 Bangalore, India",
             label_visibility="collapsed",
             key="batch_textarea",
         )
@@ -2016,19 +2016,9 @@ junk removal, Atlanta, United States"""
         with c3:
             country = st.selectbox("Country", list(COUNTRY_SCRAPERS.keys()))
 
-        zipcodes_raw = st.text_input(
-            "ZIP / Pin codes  *(optional)*",
-            placeholder="e.g. 3000, 3001, 3002  or  560001  — comma-separate multiple codes",
-            help="Each postcode is searched separately for hyper-local results.",
-        )
-        if zipcodes_raw.strip():
-            _zc_list = [z.strip() for z in zipcodes_raw.split(",") if z.strip()]
-            st.caption(f"📍 Will run {len(_zc_list)} targeted search(es): {', '.join(_zc_list[:8])}{'…' if len(_zc_list) > 8 else ''}")
-        else:
-            st.caption("💡 Leave blank to search by city only, or enter postcodes for hyper-local results.")
-
-        # Parse zip codes into a list for use during search
-        zipcodes = [z.strip() for z in zipcodes_raw.split(",") if z.strip()] if zipcodes_raw.strip() else []
+        # ZIP/postcode search removed from single search — use Batch Search instead.
+        # Batch supports postcodes natively: "HVAC engineer, SW4 Clapham, United Kingdom"
+        zipcodes = []
 
         c4, c5 = st.columns(2)
         with c4:
