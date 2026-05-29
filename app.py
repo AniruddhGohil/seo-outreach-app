@@ -526,19 +526,18 @@ html, body, [class*="css"] {
     border-radius: 8px !important; font-weight: 600 !important;
     font-size: 14px !important; color: white !important;
     padding: 10px 22px !important; letter-spacing: -0.1px !important;
-    transition: all .15s !important;
+    transition: box-shadow .15s, background .15s !important;
     box-shadow: 0 2px 6px rgba(79,70,229,.35), inset 0 1px 0 rgba(255,255,255,.15) !important;
 }
 .stButton > button[kind="primary"]:hover {
     background: linear-gradient(135deg, #4338ca, #4f46e5) !important;
     box-shadow: 0 6px 16px rgba(79,70,229,.4) !important;
-    transform: translateY(-1px) !important;
 }
 .stButton > button[kind="secondary"] {
     background: white !important; border: 1px solid #e2e8f0 !important;
     border-radius: 8px !important; font-weight: 500 !important;
     font-size: 13px !important; color: #374151 !important;
-    transition: all .15s !important;
+    transition: box-shadow .15s, border-color .15s, background .15s !important;
     box-shadow: 0 1px 2px rgba(0,0,0,.04) !important;
 }
 .stButton > button[kind="secondary"]:hover {
@@ -692,11 +691,22 @@ div[data-baseweb="select"] > div:first-child {
 [data-testid="stMainBlockContainer"],
 [data-testid="stVerticalBlock"],
 [data-testid="stVerticalBlockBorderWrapper"],
+[data-testid="stTabsContent"],
+[data-testid="stTabPanel"],
 section[tabindex="0"] {
     animation: _keepOpaque 1ms step-end infinite !important;
     pointer-events: auto !important;
     filter: none !important;
 }
+
+/* Prevent white flash on background — always keep app colour */
+html, body, .stApp,
+[data-testid="stAppViewContainer"] {
+    background-color: #f1f5f9 !important;
+}
+
+/* Remove transform on button hover — translateY causes layout recalc during reruns */
+.stButton > button { transform: none !important; }
 
 /* Ensure buttons and interactive elements are always clickable */
 .stButton, .stButton > button,
@@ -2286,9 +2296,8 @@ def _render_send():
             plain_text_mode=_plain_mode,
         )
         if started:
-            st.success(f"✅ {max_send} email(s) queued! Sending in background {method_label}.")
-            time.sleep(1)
-            st.rerun(scope="app")
+            st.toast(f"✅ {max_send} emails queued — sending {method_label}", icon="📤")
+            st.rerun()
         else:
             st.error("Could not start — another send is already running.")
 
@@ -2388,8 +2397,8 @@ def _render_followup():
                     case_study=st.session_state.get("s_case_study", DEFAULT_CASE_STUDY),
                 )
                 if started:
-                    st.success(f"✅ {_fu1_max} Follow-up 1 emails queued!")
-                    time.sleep(1); st.rerun(scope="app")
+                    st.toast(f"✅ {_fu1_max} Follow-up 1 emails queued!", icon="📤")
+                    st.rerun()
 
     st.divider()
 
@@ -2427,8 +2436,8 @@ def _render_followup():
                     case_study=st.session_state.get("s_case_study", DEFAULT_CASE_STUDY),
                 )
                 if started:
-                    st.success(f"✅ {_fu2_max} Follow-up 2 emails queued!")
-                    time.sleep(1); st.rerun(scope="app")
+                    st.toast(f"✅ {_fu2_max} Follow-up 2 emails queued!", icon="📤")
+                    st.rerun()
 
 
 with tab_followup:
