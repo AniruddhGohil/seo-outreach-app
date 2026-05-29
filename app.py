@@ -649,16 +649,9 @@ div[data-baseweb="select"] > div:first-child {
 [data-testid="stStatusWidget"] { display: none !important; }
 
 /* ── Sidebar collapse/expand button — always visible ── */
-/* Target every possible selector Streamlit uses across versions */
 [data-testid="collapsedControl"],
 [data-testid="stSidebarCollapsedControl"],
-[data-testid="stSidebarCollapseButton"],
-button[data-testid="collapsedControl"],
-button[data-testid="stSidebarCollapseButton"],
-[data-testid="stSidebar"] ~ div > button,
-section[data-testid="stSidebar"] + div button,
-.stSidebarCollapseButton,
-div[class*="collapsedControl"] {
+[data-testid="stSidebarCollapseButton"] {
     display: flex !important;
     opacity: 1 !important;
     visibility: visible !important;
@@ -671,15 +664,13 @@ div[class*="collapsedControl"] {
 }
 [data-testid="collapsedControl"]:hover,
 [data-testid="stSidebarCollapsedControl"]:hover,
-[data-testid="stSidebarCollapseButton"]:hover,
-.stSidebarCollapseButton:hover {
+[data-testid="stSidebarCollapseButton"]:hover {
     background: #334155 !important;
     border-color: #4f46e5 !important;
 }
 [data-testid="collapsedControl"] svg,
 [data-testid="stSidebarCollapsedControl"] svg,
-[data-testid="stSidebarCollapseButton"] svg,
-.stSidebarCollapseButton svg {
+[data-testid="stSidebarCollapseButton"] svg {
     fill: #94a3b8 !important;
     color: #94a3b8 !important;
     opacity: 1 !important;
