@@ -2115,13 +2115,46 @@ with tab_db:
 # ═════════════════════════════════════════════════════════════════════════════
 @st.fragment
 def _render_send():
-    _section("Send Emails",
-             "Only 'New' leads appear here. Once sent, a lead is marked Sent and never emailed again.")
+    # ── Background state snapshot ─────────────────────────────────────────────
+    with bg_state.LOCK:
+        _bg = dict(bg_state.STATE)
+        _bg["errors"] = list(bg_state.STATE["errors"])
+    _thread_alive = bg_state._thread is not None and bg_state._thread.is_alive()
+    _is_running   = _bg["running"] or _thread_alive
 
-    # Refresh button — fragments don't auto-update when DB changes in another tab
-    if st.button("🔄 Refresh queue", key="send_refresh", help="Reload leads from database"):
-        st.rerun(scope="app")
+    # ── Queue data ────────────────────────────────────────────────────────────
+    df_ready = get_leads_with_email(status="new")
+    if "email_source" in df_ready.columns and not df_ready.empty:
+        df_confirmed = df_ready[df_ready["email_source"] == "found"].copy()
+        df_inferred  = df_ready[df_ready["email_source"] == "inferred"].copy()
+        df_guessed   = df_ready[df_ready["email_source"] == "guessed"].copy()
+    else:
+        df_confirmed = df_ready.copy()
+        df_inferred  = pd.DataFrame()
+        df_guessed   = pd.DataFrame()
+    confirmed_ct = len(df_confirmed)
+    inferred_ct  = len(df_inferred)
+    guessed_ct   = len(df_guessed)
 
+    import pandas as _pd2
+    _send_frames = [df for df in [df_confirmed, df_inferred] if not df.empty]
+    df_sendable  = _pd2.concat(_send_frames, ignore_index=True) if _send_frames else _pd2.DataFrame()
+    sendable_ct  = len(df_sendable)
+
+    _brevo_key_send = st.session_state.get("s_brevo","") or st.secrets.get("brevo_key","")
+    method_label    = "via Brevo" if _brevo_key_send else "via Gmail SMTP"
+
+    # ── Header row: title + refresh ───────────────────────────────────────────
+    _hcol1, _hcol2 = st.columns([5, 1])
+    with _hcol1:
+        _section("Send Emails", "Only 'New' leads appear here. Once sent, a lead is marked Sent and never emailed again.")
+    with _hcol2:
+        st.markdown("<div style='height:22px'></div>", unsafe_allow_html=True)
+        if st.button("🔄 Refresh", key="send_refresh", use_container_width=True,
+                     help="Reload leads from database after a batch search"):
+            st.rerun(scope="app")
+
+    # ── SMTP not configured ───────────────────────────────────────────────────
     if not _smtp_ready():
         st.markdown(
             "<div style='background:white;border-radius:12px;padding:32px;text-align:center;"
@@ -2132,312 +2165,164 @@ def _render_send():
             "<p style='font-size:13px;color:#9ca3af;margin:0;'>"
             "Fill in From address, App password and Display name in the sidebar.</p>"
             "</div>", unsafe_allow_html=True)
-        st.caption("How to get an App Password: Google account → Security → 2-Step Verification → App Passwords")
+        st.caption("Google account → Security → 2-Step Verification → App Passwords")
+        return
+
+    # ── No leads ──────────────────────────────────────────────────────────────
+    if sendable_ct == 0 and not _is_running:
+        st.markdown(
+            "<div style='background:white;border-radius:12px;padding:48px 24px;"
+            "text-align:center;border:1px solid #e9ecef;margin-top:8px;'>"
+            "<p style='font-size:36px;margin:0 0 12px;'>📭</p>"
+            "<p style='font-size:16px;font-weight:600;color:#111827;margin:0 0 6px;'>"
+            "No leads ready to send</p>"
+            "<p style='font-size:13px;color:#9ca3af;margin:0;'>"
+            "Just ran a batch search? Click <b>🔄 Refresh</b> above.<br>"
+            "Otherwise go to <b>Find Leads</b> to scrape more businesses.</p>"
+            "</div>", unsafe_allow_html=True)
+        return
+
+    # ── ACTIVE SEND progress banner ───────────────────────────────────────────
+    if _is_running:
+        _pct = int(_bg["done"] / _bg["total"] * 100) if _bg["total"] > 0 else 0
+        st.markdown(
+            "<div style='background:#f0fdf4;border:1px solid #bbf7d0;"
+            "border-radius:12px;padding:18px 22px;margin-bottom:20px;'>"
+            "<div style='font-size:15px;font-weight:700;color:#15803d;margin-bottom:4px;'>"
+            "📤 Sending in background…</div>"
+            "<div style='font-size:13px;color:#166534;'>"
+            "Leave this tab open. Click <b>🔄 Refresh</b> to update progress.</div>"
+            "</div>", unsafe_allow_html=True)
+        pa1, pa2, pa3, pa4 = st.columns(4)
+        with pa1: _stat_card("Sent",      _bg["sent"],                      "#16a34a")
+        with pa2: _stat_card("Failed",    _bg["failed"],                    "#ef4444")
+        with pa3: _stat_card("Remaining", max(0,_bg["total"]-_bg["done"]),  "#6b7280")
+        with pa4: _stat_card("Total",     _bg["total"],                     "#2563eb")
+        st.progress(_pct / 100,
+                    text=f"Processing {_bg['done']}/{_bg['total']} — {_bg['current_biz'] or 'waiting…'}")
+        if _bg.get("current_email"):
+            st.caption(f"Sending to: {_bg['current_email']}")
+        if not _bg["cancel_requested"]:
+            if st.button("⏹ Stop after current email", use_container_width=True):
+                with bg_state.LOCK:
+                    bg_state.STATE["cancel_requested"] = True
+                st.warning("Stop requested — finishing current email then halting.")
+        else:
+            st.info("⏳ Stopping after this email…")
+        if _bg["errors"]:
+            with st.expander(f"⚠️ {len(_bg['errors'])} error(s)"):
+                for err in _bg["errors"]: st.text(err)
+        st.divider()
+
+    # ── Finished banner (compact) ─────────────────────────────────────────────
+    elif _bg["finished_at"]:
+        st.markdown(
+            f"<div style='background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;"
+            f"padding:12px 18px;margin-bottom:16px;font-size:13px;color:#15803d;'>"
+            f"✅ Last send complete — <b>{_bg['sent']} sent</b>, {_bg['failed']} failed"
+            f" &nbsp;·&nbsp; {_bg['finished_at']}</div>",
+            unsafe_allow_html=True)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # MAIN SEND FORM — visible immediately, no scrolling needed
+    # ══════════════════════════════════════════════════════════════════════════
+
+    # ── 1. Queue summary ──────────────────────────────────────────────────────
+    st.markdown(
+        f"<div style='background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;"
+        f"padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;gap:16px;'>"
+        f"<div style='font-size:36px;font-weight:800;color:#15803d;line-height:1;'>{sendable_ct}</div>"
+        f"<div>"
+        f"<div style='font-size:14px;font-weight:700;color:#15803d;'>leads ready to send</div>"
+        f"<div style='font-size:12px;color:#166534;margin-top:2px;'>"
+        f"✅ {confirmed_ct} confirmed email{'s' if confirmed_ct!=1 else ''}"
+        f"{'  ·  🔮 ' + str(inferred_ct) + ' inferred' if inferred_ct else ''}"
+        f"</div></div></div>",
+        unsafe_allow_html=True)
+
+    # ── 2. Template picker ────────────────────────────────────────────────────
+    st.markdown("<p style='font-size:13px;font-weight:600;color:#374151;margin:0 0 6px;'>Email template</p>",
+                unsafe_allow_html=True)
+    tpl_choice = st.radio(
+        "template", list(TEMPLATE_OPTIONS.keys()),
+        format_func=lambda k: f"{TEMPLATE_OPTIONS[k][0]}  —  {TEMPLATE_OPTIONS[k][1]}",
+        label_visibility="collapsed", key="tpl_choice", horizontal=True,
+    )
+
+    # ── 3. How many + plain text toggle ──────────────────────────────────────
+    _slider_max = max(1, min(200, sendable_ct))
+    _slider_val = max(1, min(20, sendable_ct))
+    sc1, sc2 = st.columns([3, 1])
+    with sc1:
+        max_send = st.slider("How many emails to send?", 1, _slider_max, _slider_val)
+    with sc2:
+        est_total = max(1, (max_send * delay_sec) // 60)
+        st.metric("Est. time", f"~{est_total} min")
+
+    if _brevo_key_send:
+        _plain_mode = st.toggle(
+            "📨 Plain text mode — targets Primary inbox",
+            value=True, key="plain_text_toggle",
+            help="ON = plain text, Primary inbox. OFF = HTML with tracking, may hit Promotions.")
     else:
-        with st.expander("Preview email template"):
-            st.markdown(
-                build_html("short", "ABC Plumbing",
-                           sender_name or "Your Name",
-                           sender_email or "you@gmail.com"),
-                unsafe_allow_html=True,
-            )
+        _plain_mode = False
 
-        # ── Read background state (thread-safe snapshot) ──────────────────────
-        with bg_state.LOCK:
-            _bg = dict(bg_state.STATE)
-            _bg["errors"] = list(bg_state.STATE["errors"])   # copy the list too
-        _thread_alive = (
-            bg_state._thread is not None and bg_state._thread.is_alive()
+    # ── 4. THE SEND BUTTON ────────────────────────────────────────────────────
+    st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+    if _is_running:
+        st.warning("⏳ A send is already running — wait for it to finish or stop it above.")
+    elif st.button(
+        f"📤  Send {max_send} Email{'s' if max_send > 1 else ''} Now  —  {method_label}",
+        type="primary", use_container_width=True,
+    ):
+        ids = df_sendable.head(max_send)["id"].astype(int).tolist()
+        _eff_name = (st.session_state.get("s_brevo_name","") or "Aniruddh Gohil") \
+                    if _brevo_key_send else sender_name
+        started = _queue_and_send(
+            ids, sender_email, app_password, _eff_name,
+            delay_sec, tpl_choice, _brevo_key_send,
+            portfolio_url=st.session_state.get("s_portfolio", DEFAULT_PORTFOLIO_URL),
+            case_study=st.session_state.get("s_case_study", DEFAULT_CASE_STUDY),
+            plain_text_mode=_plain_mode,
         )
-        _is_running = _bg["running"] or _thread_alive
-
-        # ── PANEL A — Background progress (shown when send is active) ─────────
-        if _is_running or _bg["finished_at"]:
-            _pct = (int(_bg["done"] / _bg["total"] * 100)
-                    if _bg["total"] > 0 else 0)
-
-            if _is_running:
-                # Running header
-                st.markdown(
-                    "<div style='background:#f0fdf4;border:1px solid #bbf7d0;"
-                    "border-radius:10px;padding:16px 20px;margin-bottom:16px;'>"
-                    "<div style='font-size:14px;font-weight:700;color:#15803d;"
-                    "margin-bottom:4px;'>📤 Sending emails in the background</div>"
-                    "<div style='font-size:13px;color:#166534;'>"
-                    "You can switch tabs, minimise this window, or leave it open — "
-                    "emails keep going. Come back here and click "
-                    "<b>Refresh status</b> to see progress.</div>"
-                    "</div>",
-                    unsafe_allow_html=True,
-                )
-            else:
-                st.markdown(
-                    "<div style='background:#f0fdf4;border:1px solid #bbf7d0;"
-                    "border-radius:10px;padding:14px 20px;margin-bottom:16px;'>"
-                    "<div style='font-size:14px;font-weight:700;color:#15803d;'>"
-                    f"✅ Background send finished — {_bg['sent']} sent, "
-                    f"{_bg['failed']} failed</div>"
-                    f"<div style='font-size:12px;color:#166534;margin-top:2px;'>"
-                    f"Started {_bg['started_at']} · Finished {_bg['finished_at']}</div>"
-                    "</div>",
-                    unsafe_allow_html=True,
-                )
-
-            # Progress stats
-            pa1, pa2, pa3, pa4 = st.columns(4)
-            with pa1: _stat_card("Sent",      _bg["sent"],                    "#16a34a")
-            with pa2: _stat_card("Failed",    _bg["failed"],                  "#ef4444")
-            with pa3: _stat_card("Remaining", max(0, _bg["total"]-_bg["done"]), "#6b7280")
-            with pa4: _stat_card("Total",     _bg["total"],                   "#2563eb")
-
-            # Progress bar
-            st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-            st.progress(_pct / 100,
-                        text=(f"Processing {_bg['done']}/{_bg['total']} — "
-                              f"currently: {_bg['current_biz'] or 'waiting…'}")
-                        if _is_running else
-                        f"Complete ({_bg['done']}/{_bg['total']})")
-
-            if _bg.get("current_email") and _is_running:
-                st.caption(f"Sending to: {_bg['current_email']}")
-
-            # Controls
-            ctrl1, ctrl2 = st.columns([1, 3])
-            with ctrl1:
-                if st.button("🔄 Refresh status", use_container_width=True):
-                    st.rerun(scope="app")
-            with ctrl2:
-                if _is_running and not _bg["cancel_requested"]:
-                    if st.button("⏹ Stop after current email",
-                                 use_container_width=True):
-                        with bg_state.LOCK:
-                            bg_state.STATE["cancel_requested"] = True
-                        st.warning("Stop requested — finishing the current email "
-                                   "then halting. Remaining leads stay as 'queued'.")
-                elif _bg["cancel_requested"] and _is_running:
-                    st.info("⏳ Stopping after this email…")
-
-            # Errors
-            if _bg["errors"]:
-                with st.expander(f"⚠️ {len(_bg['errors'])} delivery error(s)"):
-                    for err in _bg["errors"]:
-                        st.text(err)
-
-            st.divider()
-
-        # ── PANEL B — Queue panel (new confirmed leads waiting to be sent) ─────
-        df_ready = get_leads_with_email(status="new")
-
-        # Split confirmed vs inferred vs guessed
-        if "email_source" in df_ready.columns and not df_ready.empty:
-            df_confirmed = df_ready[df_ready["email_source"] == "found"].copy()
-            df_inferred  = df_ready[df_ready["email_source"] == "inferred"].copy()
-            df_guessed   = df_ready[df_ready["email_source"] == "guessed"].copy()
+        if started:
+            st.success(f"✅ {max_send} email(s) queued! Sending in background {method_label}.")
+            time.sleep(1)
+            st.rerun(scope="app")
         else:
-            df_confirmed = df_ready.copy()
-            df_inferred  = pd.DataFrame()
-            df_guessed   = pd.DataFrame()
+            st.error("Could not start — another send is already running.")
 
-        confirmed_ct = len(df_confirmed)
-        inferred_ct  = len(df_inferred)
-        guessed_ct   = len(df_guessed)
+    st.divider()
 
-        # Inferred-email info banner
-        if inferred_ct > 0:
+    # ── Secondary details (collapsed by default) ──────────────────────────────
+    with st.expander(f"👁 Preview — {TEMPLATE_OPTIONS.get(tpl_choice,('',''))[0]} template"):
+        st.markdown(
+            build_html(tpl_choice, "Example Business Co.",
+                       sender_name or "Your Name", sender_email or "you@gmail.com"),
+            unsafe_allow_html=True)
+
+    with st.expander(f"📋 View {sendable_ct} leads in queue"):
+        _c_disp = df_sendable.copy()
+        _c_disp["Email"] = _c_disp.apply(
+            lambda r: ("🔮 " if r.get("email_source")=="inferred" else "✅ ") + str(r.get("email","")), axis=1)
+        _cc = [c for c in ["id","business_name","Email","city","country","keyword"] if c in _c_disp.columns]
+        st.dataframe(_c_disp[_cc], use_container_width=True, hide_index=True, height=220)
+
+    if inferred_ct > 0:
+        with st.expander(f"🔮 {inferred_ct} name-inferred emails — what does this mean?"):
             st.markdown(
-                f"<div style='background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;"
-                f"padding:14px 18px;margin-bottom:12px;'>"
-                f"<p style='font-size:13px;font-weight:700;color:#0369a1;margin:0 0 4px;'>"
-                f"🔮  {inferred_ct} name-inferred email address"
-                f"{'es' if inferred_ct > 1 else ''} in queue</p>"
-                f"<p style='font-size:12px;color:#075985;margin:0;line-height:1.6;'>"
-                f"These emails were <b>derived from person names found on the website</b> "
-                f"(e.g. <code>john@businessdomain.co.uk</code>). Better than a blind guess — "
-                f"safe to send but expect a slightly higher bounce rate than 'found' emails.</p>"
-                f"</div>",
-                unsafe_allow_html=True,
-            )
+                "These emails were **derived from person names** found on the website "
+                "(e.g. `john@businessdomain.co.uk`). Better than a blind guess — "
+                "safe to send but expect a slightly higher bounce rate.")
 
-        # Guessed-email warning
-        if guessed_ct > 0:
-            st.markdown(
-                f"<div style='background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;"
-                f"padding:14px 18px;margin-bottom:16px;'>"
-                f"<p style='font-size:13px;font-weight:700;color:#92400e;margin:0 0 4px;'>"
-                f"⚠️  {guessed_ct} guessed email address"
-                f"{'es' if guessed_ct > 1 else ''} in queue</p>"
-                f"<p style='font-size:12px;color:#78350f;margin:0;line-height:1.6;'>"
-                f"These are <b>pattern guesses</b> (e.g. <code>info@domain.com</code>) and "
-                f"will likely bounce. Delete them and re-scrape with the improved finder.</p>"
-                f"</div>",
-                unsafe_allow_html=True,
-            )
-            with st.expander(f"🗑️ Review & delete {guessed_ct} guessed-email lead(s)"):
-                _g_disp = df_guessed.copy()
-                _g_disp["Source"] = "🤔 Guessed"
-                _gc = [c for c in ["id","business_name","email","Source","city","keyword"]
-                       if c in _g_disp.columns]
-                st.dataframe(_g_disp[_gc], use_container_width=True,
-                             hide_index=True, height=180)
-                if st.button("🗑️ Delete all guessed-email leads", type="primary",
-                             key="del_guessed"):
-                    delete_leads(df_guessed["id"].astype(int).tolist())
-                    st.success(f"Deleted {guessed_ct} leads.")
-                    st.rerun(scope="app")
-
-        # ── Sending method banner ─────────────────────────────────────────
-        _brevo_k = st.session_state.get("s_brevo","") or st.secrets.get("brevo_key","")
-        if _brevo_k:
-            st.markdown(
-                "<div style='background:#f0fdf4;border:1px solid #bbf7d0;"
-                "border-radius:8px;padding:10px 16px;margin-bottom:12px;"
-                "font-size:13px;color:#15803d;'>"
-                "📡 <b>Brevo</b> will be used for sending — open & click tracking enabled.</div>",
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown(
-                "<div style='background:#fefce8;border:1px solid #fde68a;"
-                "border-radius:8px;padding:10px 16px;margin-bottom:12px;"
-                "font-size:13px;color:#92400e;'>"
-                "📧 Sending via <b>Gmail SMTP</b> — add a Brevo API key in the sidebar "
-                "for open/click tracking and better deliverability.</div>",
-                unsafe_allow_html=True,
-            )
-
-        # Sendable pool = confirmed ("found") + inferred — both are real addresses.
-        # Guessed (info@…) stays separate and is never auto-queued.
-        import pandas as _pd2
-        _send_frames = [df for df in [df_confirmed, df_inferred] if not df.empty]
-        df_sendable  = _pd2.concat(_send_frames, ignore_index=True) if _send_frames else _pd2.DataFrame()
-        sendable_ct  = len(df_sendable)
-
-        if sendable_ct == 0:
-            if not _is_running:
-                st.markdown(
-                    "<div style='background:white;border-radius:12px;padding:48px 24px;"
-                    "text-align:center;border:1px solid #e9ecef;'>"
-                    "<p style='font-size:32px;margin:0 0 12px;'>📭</p>"
-                    "<p style='font-size:16px;font-weight:600;color:#111827;margin:0 0 6px;'>"
-                    "No leads ready to send</p>"
-                    "<p style='font-size:13px;color:#9ca3af;margin:0;'>"
-                    "Just ran a batch search? Click <b>Refresh queue</b> above. "
-                    "Otherwise go to Find Leads to scrape more businesses.</p>"
-                    "</div>", unsafe_allow_html=True)
-        else:
-            # Summary stats
-            s1, s2, s3 = st.columns(3)
-            with s1:
-                _stat_card(
-                    "Ready to send", sendable_ct, "#16a34a",
-                    f"{confirmed_ct} confirmed · {inferred_ct} inferred",
-                )
-            with s2:
-                est_mins = max(1, (min(sendable_ct, 20) * delay_sec) // 60)
-                _stat_card("Est. for 20 emails", f"~{est_mins} min", "#6b7280")
-            with s3:
-                _stat_card("Delay between sends", f"{delay_sec}s", "#7c3aed")
-
-            st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-
-            # Combined leads table
-            _c_disp = df_sendable.copy()
-            def _email_label(row):
-                src = row.get("email_source", "found")
-                if src == "inferred":
-                    return "🔮 " + str(row.get("email", ""))
-                return "✅ " + str(row.get("email", ""))
-            _c_disp["Email"] = _c_disp.apply(_email_label, axis=1)
-            _cc = [c for c in ["id","business_name","Email","city","country","keyword"]
-                   if c in _c_disp.columns]
-            st.dataframe(_c_disp[_cc], use_container_width=True,
-                         hide_index=True, height=220)
-
-            # ── Template picker ───────────────────────────────────────────
-            st.markdown("<p style='font-size:13px;font-weight:600;color:#374151;"
-                        "margin:14px 0 6px;'>Email template</p>",
-                        unsafe_allow_html=True)
-            tpl_choice = st.radio(
-                "template", list(TEMPLATE_OPTIONS.keys()),
-                format_func=lambda k: (
-                    f"{TEMPLATE_OPTIONS[k][0]}  —  {TEMPLATE_OPTIONS[k][1]}"
-                ),
-                label_visibility="collapsed",
-                key="tpl_choice",
-            )
-            with st.expander("👁 Preview selected template"):
-                st.markdown(
-                    build_html(tpl_choice,
-                               "Example Business Co.",
-                               sender_name or "Your Name",
-                               sender_email or "you@gmail.com"),
-                    unsafe_allow_html=True,
-                )
-
-            _slider_max = max(1, min(200, sendable_ct))
-            _slider_val = max(1, min(20, sendable_ct))
-            sc1, sc2 = st.columns([3, 1])
-            with sc1:
-                max_send = st.slider(
-                    "How many emails to queue?",
-                    1, _slider_max, _slider_val,
-                )
-            with sc2:
-                est_total = max(1, (max_send * delay_sec) // 60)
-                st.metric("Est. total time", f"~{est_total} min")
-
-            _brevo_key_send = (st.session_state.get("s_brevo","")
-                               or st.secrets.get("brevo_key",""))
-            method_label = "via Brevo" if _brevo_key_send else "via Gmail SMTP"
-
-            # ── Plain text mode toggle ─────────────────────────────────────
-            if _brevo_key_send:
-                _plain_mode = st.toggle(
-                    "📨 Plain text mode — targets Primary inbox (not Promotions)",
-                    value=True,
-                    key="plain_text_toggle",
-                    help=(
-                        "ON  → sends plain text only. No tracking pixel. "
-                        "Gmail routes these to Primary inbox.\n\n"
-                        "OFF → sends full HTML with open/click tracking. "
-                        "More likely to land in Promotions tab."
-                    ),
-                )
-                if _plain_mode:
-                    st.caption("📨 Plain text · No open/click tracking · Primary inbox targeting")
-                else:
-                    st.caption("🎨 HTML email · Open & click tracking active · May land in Promotions")
-            else:
-                _plain_mode = False
-
-            if _is_running:
-                st.warning("⏳ A send is already running. Wait or stop it first.")
-            else:
-                if st.button(
-                    f"📤 Queue {max_send} email{'s' if max_send > 1 else ''} "
-                    f"& send in background {method_label}",
-                    type="primary", use_container_width=True,
-                ):
-                    ids = df_sendable.head(max_send)["id"].astype(int).tolist()
-                    _eff_name = (st.session_state.get("s_brevo_name","") or "Aniruddh Gohil") \
-                                if _brevo_key_send else sender_name
-                    _port = st.session_state.get("s_portfolio", DEFAULT_PORTFOLIO_URL)
-                    _cs   = st.session_state.get("s_case_study", DEFAULT_CASE_STUDY)
-                    started = _queue_and_send(
-                        ids, sender_email, app_password, _eff_name,
-                        delay_sec, tpl_choice, _brevo_key_send,
-                        portfolio_url=_port, case_study=_cs,
-                        plain_text_mode=_plain_mode,
-                    )
-                    if started:
-                        st.success(
-                            f"✅ {max_send} email(s) queued! Sending in background "
-                            f"{method_label}. Navigate away — check progress anytime."
-                        )
-                        time.sleep(1)
-                        st.rerun(scope="app")
-                    else:
-                        st.error("Could not start — another send is already running.")
+    if guessed_ct > 0:
+        with st.expander(f"⚠️ {guessed_ct} guessed-email leads — review before sending"):
+            _g_disp = df_guessed[[c for c in ["id","business_name","email","city","keyword"] if c in df_guessed.columns]]
+            st.dataframe(_g_disp, use_container_width=True, hide_index=True, height=180)
+            if st.button("🗑️ Delete all guessed-email leads", type="primary", key="del_guessed"):
+                delete_leads(df_guessed["id"].astype(int).tolist())
+                st.success(f"Deleted {guessed_ct} leads.")
+                st.rerun(scope="app")
 
 
 with tab_send:
