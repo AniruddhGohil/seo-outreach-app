@@ -2212,13 +2212,18 @@ def _render_send():
                     text=f"Processing {_bg['done']}/{_bg['total']} — {_bg['current_biz'] or 'waiting…'}")
         if _bg.get("current_email"):
             st.caption(f"Sending to: {_bg['current_email']}")
-        if not _bg["cancel_requested"]:
-            if st.button("⏹ Stop after current email", use_container_width=True):
-                with bg_state.LOCK:
-                    bg_state.STATE["cancel_requested"] = True
-                st.warning("Stop requested — finishing current email then halting.")
-        else:
-            st.info("⏳ Stopping after this email…")
+        _rc1, _rc2 = st.columns(2)
+        with _rc1:
+            if st.button("🔄 Refresh status", use_container_width=True, key="send_refresh_status"):
+                st.rerun(scope="app")
+        with _rc2:
+            if not _bg["cancel_requested"]:
+                if st.button("⏹ Stop after current email", use_container_width=True):
+                    with bg_state.LOCK:
+                        bg_state.STATE["cancel_requested"] = True
+                    st.warning("Stop requested — finishing current email then halting.")
+            else:
+                st.info("⏳ Stopping after this email…")
         if _bg["errors"]:
             with st.expander(f"⚠️ {len(_bg['errors'])} error(s)"):
                 for err in _bg["errors"]: st.text(err)
