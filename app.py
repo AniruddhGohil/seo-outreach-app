@@ -807,7 +807,7 @@ STATUS_BADGE = {
 with st.sidebar:
     # Wordmark
     st.markdown(
-        "<div style='padding:20px 0 14px;border-bottom:1px solid #1e293b;margin-bottom:14px;'>"
+        "<div style='padding:4px 0 14px;border-bottom:1px solid #1e293b;margin-bottom:14px;'>"
         "<div style='display:flex;align-items:center;gap:10px;'>"
         "<div style='width:32px;height:32px;"
         "background:linear-gradient(135deg,#4f46e5,#7c3aed);border-radius:9px;"
