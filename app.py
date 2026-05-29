@@ -2239,8 +2239,21 @@ def _render_send():
             unsafe_allow_html=True)
 
     # ══════════════════════════════════════════════════════════════════════════
-    # MAIN SEND FORM — visible immediately, no scrolling needed
+    # MAIN SEND FORM — only shown when there are leads to send
     # ══════════════════════════════════════════════════════════════════════════
+    if sendable_ct == 0:
+        if not _is_running:
+            st.markdown(
+                "<div style='background:white;border-radius:12px;padding:48px 24px;"
+                "text-align:center;border:1px solid #e9ecef;margin-top:8px;'>"
+                "<p style='font-size:36px;margin:0 0 12px;'>📭</p>"
+                "<p style='font-size:16px;font-weight:600;color:#111827;margin:0 0 6px;'>"
+                "No leads ready to send</p>"
+                "<p style='font-size:13px;color:#9ca3af;margin:0;'>"
+                "Just ran a batch search? Click <b>🔄 Refresh</b> above.<br>"
+                "Otherwise go to <b>Find Leads</b> to scrape more businesses.</p>"
+                "</div>", unsafe_allow_html=True)
+        return
 
     # ── 1. Queue summary ──────────────────────────────────────────────────────
     st.markdown(
