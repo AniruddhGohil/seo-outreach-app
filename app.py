@@ -2827,8 +2827,9 @@ def _render_analytics():
             _cc_colors = [
                 f"rgba(79,70,229,{0.40 + 0.60 * i / _n})" for i in range(_n)
             ]
-            # Compute a sensible height: min 52px per bar, min total 200px
-            _cc_h = max(200, _n * 52)
+            # Scale height tightly — never pad a 1-bar chart to 200px
+            _cc_h = _n * 58 + 24
+            _cc_bw = max(0.40, 0.82 - _n * 0.04)  # thicker bar when fewer rows
             fig_cc = go.Figure(go.Bar(
                 x=cc["count"],
                 y=cc["country"],
@@ -2836,21 +2837,21 @@ def _render_analytics():
                 marker=dict(
                     color=_cc_colors,
                     line=dict(width=0),
-                    cornerradius=4,
+                    cornerradius=6,
                 ),
                 text=cc["count"],
                 textposition="inside",
                 insidetextanchor="end",
                 textfont=dict(size=12, color="white", family="Inter, sans-serif"),
                 hovertemplate="<b>%{y}</b><br>%{x} leads<extra></extra>",
-                width=[0.55] * _n,   # bar thickness (0–1 in category units)
+                width=[_cc_bw] * _n,
             ))
             fig_cc.update_layout(
                 height=_cc_h,
                 margin=dict(l=8, r=8, t=8, b=8),
                 paper_bgcolor="white",
                 plot_bgcolor="white",
-                bargap=0.35,
+                bargap=0.18,
                 font=dict(family="Inter, sans-serif", size=12, color="#374151"),
                 hoverlabel=dict(
                     bgcolor="white", bordercolor="#e2e8f0",
@@ -2885,7 +2886,8 @@ def _render_analytics():
                 "replied": "Replied", "skipped": "Skipped",
             }
             _ns = max(1, len(sc_df))
-            _sc_h = max(200, _ns * 52)
+            _sc_h = _ns * 58 + 24
+            _sc_bw = max(0.40, 0.82 - _ns * 0.04)
             fig_sc = go.Figure(go.Bar(
                 x=sc_df["count"],
                 y=[_sc_labels.get(s, s) for s in sc_df["status"]],
@@ -2893,21 +2895,21 @@ def _render_analytics():
                 marker=dict(
                     color=[_sc_colors.get(s, "#6366f1") for s in sc_df["status"]],
                     line=dict(width=0),
-                    cornerradius=4,
+                    cornerradius=6,
                 ),
                 text=sc_df["count"],
                 textposition="inside",
                 insidetextanchor="end",
                 textfont=dict(size=12, color="white", family="Inter, sans-serif"),
                 hovertemplate="<b>%{y}</b><br>%{x} leads<extra></extra>",
-                width=[0.55] * _ns,
+                width=[_sc_bw] * _ns,
             ))
             fig_sc.update_layout(
                 height=_sc_h,
                 margin=dict(l=8, r=8, t=8, b=8),
                 paper_bgcolor="white",
                 plot_bgcolor="white",
-                bargap=0.35,
+                bargap=0.18,
                 font=dict(family="Inter, sans-serif", size=12, color="#374151"),
                 hoverlabel=dict(
                     bgcolor="white", bordercolor="#e2e8f0",
@@ -2977,11 +2979,11 @@ def _render_analytics():
             width=[0.55] * _nk,
         ))
         fig_kc.update_layout(
-            height=max(200, _nk * 48),
+            height=_nk * 58 + 24,
             margin=dict(l=8, r=8, t=8, b=8),
             paper_bgcolor="white",
             plot_bgcolor="white",
-            bargap=0.35,
+            bargap=0.18,
             font=dict(family="Inter, sans-serif", size=12, color="#374151"),
             hoverlabel=dict(
                 bgcolor="white", bordercolor="#e2e8f0",
