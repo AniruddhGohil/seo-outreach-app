@@ -1904,57 +1904,75 @@ junk removal, Atlanta, United States"""
             unsafe_allow_html=True,
         )
 
-        # Quick-fill niche templates
+        # Quick-fill niche buttons — append a line to the batch textarea
         st.markdown("<p style='font-size:11px;font-weight:600;color:#9ca3af;"
                     "text-transform:uppercase;letter-spacing:0.5px;margin:0 0 6px;'>"
                     "Niche ideas</p>", unsafe_allow_html=True)
         _ec1, _ec2, _ec3, _ec4 = st.columns(4)
         _ecomm_niches = {
-            "🧴 Skincare": "natural skincare products",
-            "🏋️ Fitness": "fitness supplements",
-            "🐾 Pet": "pet accessories",
-            "👗 Fashion": "women's fashion boutique",
-            "🍵 Food": "artisan food gifts",
-            "🧸 Baby": "baby products",
-            "🪴 Home": "home décor",
-            "💍 Jewellery": "handmade jewellery",
+            "🧴 Skincare":   "natural skincare products, United Kingdom",
+            "🏋️ Fitness":   "fitness supplements, United Kingdom",
+            "🐾 Pet":        "pet accessories, United Kingdom",
+            "👗 Fashion":    "women's fashion boutique, United Kingdom",
+            "🍵 Food":       "artisan food gifts, United Kingdom",
+            "🧸 Baby":       "baby products, United Kingdom",
+            "🪴 Home":       "home décor, United Kingdom",
+            "💍 Jewellery":  "handmade jewellery, United Kingdom",
         }
         _niche_cols = [_ec1, _ec2, _ec3, _ec4] * 2
-        for (_label, _niche_val), _col in zip(_ecomm_niches.items(), _niche_cols):
+        for (_label, _line), _col in zip(_ecomm_niches.items(), _niche_cols):
             with _col:
                 if st.button(_label, use_container_width=True, key=f"ec_{_label}"):
-                    st.session_state["ec_niche"] = _niche_val
+                    _cur = st.session_state.get("ec_batch_text", "").strip()
+                    st.session_state["ec_batch_text"] = (_cur + "\n" + _line).strip()
 
-        _ecol1, _ecol2 = st.columns([3, 1])
-        with _ecol1:
-            ec_niche = st.text_input(
-                "Product niche or keyword",
-                value=st.session_state.get("ec_niche", ""),
-                placeholder="e.g. natural skincare · fitness supplements · artisan coffee",
-                key="ec_niche_input",
-            )
-        with _ecol2:
-            ec_country = st.selectbox(
-                "Country", ["United Kingdom", "Australia", "USA", "New Zealand", "UAE"],
-                key="ec_country",
-            )
+        # Batch text area — one search per line: niche, country
+        ec_batch_raw = st.text_area(
+            "Search list",
+            value=st.session_state.get("ec_batch_text", ""),
+            height=140,
+            placeholder="natural skincare products, United Kingdom\nfitness supplements, United States\npet accessories, Australia",
+            label_visibility="collapsed",
+            key="ec_batch_textarea",
+        )
+        st.caption("One search per line: **niche, country** — country defaults to United Kingdom if omitted.")
 
         _ecol3, _ecol4 = st.columns([2, 1])
         with _ecol3:
-            ec_max = st.slider("Max stores to find", 10, 60, 30, key="ec_max",
+            ec_max = st.slider("Max stores per search", 10, 60, 30, key="ec_max",
                                help="Each store website is then visited to extract a contact email.")
         with _ecol4:
             ec_email = st.toggle("Auto-extract emails", value=True, key="ec_email")
 
         _serper_for_ec = st.session_state.get("s_serper","") or st.secrets.get("serper_key","")
 
+        # Parse batch lines
+        _ec_searches = []
+        for _raw_line in ec_batch_raw.strip().splitlines():
+            _raw_line = _raw_line.strip()
+            if not _raw_line or _raw_line.startswith("#"):
+                continue
+            _parts = [p.strip() for p in _raw_line.split(",", 1)]
+            _ec_searches.append((_parts[0], _parts[1] if len(_parts) > 1 else "United Kingdom"))
+
+        if _ec_searches:
+            st.caption(f"📋 {len(_ec_searches)} search{'es' if len(_ec_searches) > 1 else ''} queued")
+
         if not _serper_for_ec:
             st.warning("⚠️ Add your Serper API key in the sidebar to use e-commerce search.")
         elif st.button("🛒 Find E-commerce Stores", type="primary",
                        use_container_width=True, key="btn_ecomm"):
-            if not ec_niche.strip():
-                st.error("Enter a product niche or keyword.")
+            if not _ec_searches:
+                st.error("Enter at least one niche to search.")
             else:
+                _ec_total_new = 0
+                for _ec_idx, (ec_niche, ec_country) in enumerate(_ec_searches):
+                    st.markdown(
+                        f"<div style='font-size:12px;font-weight:600;color:#6366f1;"
+                        f"margin:8px 0 4px;'>[{_ec_idx+1}/{len(_ec_searches)}] "
+                        f"{ec_niche} · {ec_country}</div>",
+                        unsafe_allow_html=True,
+                    )
                 _ec_prog = st.progress(0, text="Searching Google for online stores…")
                 _ec_log  = st.empty()
                 _ec_lines: list = []
@@ -1963,51 +1981,59 @@ junk removal, Atlanta, United States"""
                     _ec_lines.append(msg)
                     _ec_log.markdown("```\n" + "\n".join(_ec_lines[-20:]) + "\n```")
 
-                _ec_sid   = save_search(ec_niche, "web", ec_country)
-                _ec_stores = scrape_ecommerce(
-                    niche=ec_niche.strip(),
-                    country=ec_country,
-                    api_key=_serper_for_ec,
-                    max_results=ec_max,
-                    log_cb=_eclog,
-                )
-                _ec_prog.progress(50, text=f"Found {len(_ec_stores)} stores — extracting emails…")
-
                 _ec_new = 0
-                for _idx, _store in enumerate(_ec_stores):
-                    if is_duplicate_lead(website=_store.get("website", "")):
-                        continue
-                    if ec_email and _store.get("website"):
-                        _em, _es = find_email_on_website(
-                            _store["website"], use_guess_fallback=False
-                        )
-                        _store["email"]        = _em
-                        _store["email_source"] = _es
-                        if not _em:
-                            _store["status"] = "no_email"
-                        _eclog(
-                            f"{'📧' if _em else '—'}  {_store['business_name'][:40]}  "
-                            f"{'→ ' + _em if _em else '(no email)'}"
-                        )
-                    else:
-                        _store["email"]        = None
-                        _store["email_source"] = None
-                        _store["status"]       = "no_email"
-
-                    if insert_lead(_store):
-                        _ec_new += 1
-
+                for _ec_idx, (ec_niche, ec_country) in enumerate(_ec_searches):
+                    _eclog(f"🔍 [{_ec_idx+1}/{len(_ec_searches)}] {ec_niche} · {ec_country}")
+                    _ec_sid   = save_search(ec_niche, "web", ec_country)
+                    _ec_stores = scrape_ecommerce(
+                        niche=ec_niche.strip(),
+                        country=ec_country,
+                        api_key=_serper_for_ec,
+                        max_results=ec_max,
+                        log_cb=_eclog,
+                    )
                     _ec_prog.progress(
-                        50 + int((_idx + 1) / max(len(_ec_stores), 1) * 50),
-                        text=f"Processing {_idx+1}/{len(_ec_stores)} stores…",
+                        int((_ec_idx + 0.5) / len(_ec_searches) * 100),
+                        text=f"Found {len(_ec_stores)} stores — extracting emails…"
                     )
 
-                update_search_result(_ec_sid, len(_ec_stores), _ec_new)
+                    _search_new = 0
+                    for _idx, _store in enumerate(_ec_stores):
+                        if is_duplicate_lead(website=_store.get("website", "")):
+                            continue
+                        if ec_email and _store.get("website"):
+                            _em, _es = find_email_on_website(
+                                _store["website"], use_guess_fallback=False, fast_mode=True
+                            )
+                            _store["email"]        = _em
+                            _store["email_source"] = _es
+                            if not _em:
+                                _store["status"] = "no_email"
+                            _eclog(
+                                f"{'📧' if _em else '—'}  {_store['business_name'][:40]}  "
+                                f"{'→ ' + _em if _em else '(no email)'}"
+                            )
+                        else:
+                            _store["email"]        = None
+                            _store["email_source"] = None
+                            _store["status"]       = "no_email"
+
+                        if insert_lead(_store):
+                            _search_new += 1
+
+                        _ec_prog.progress(
+                            int((_ec_idx + (_idx + 1) / max(len(_ec_stores), 1)) / len(_ec_searches) * 100),
+                            text=f"[{_ec_idx+1}/{len(_ec_searches)}] Processing {_idx+1}/{len(_ec_stores)} stores…",
+                        )
+
+                    update_search_result(_ec_sid, len(_ec_stores), _search_new)
+                    _ec_new += _search_new
+                    _eclog(f"  ✅ {_search_new} new leads saved from {len(_ec_stores)} stores")
+
                 _ec_prog.progress(100, text="Done!")
                 st.success(
-                    f"✅ **{_ec_new} new e-commerce leads** saved from {len(_ec_stores)} "
-                    f"stores found. Use the **E-commerce** email template when sending — "
-                    f"it references your +238% revenue case study directly."
+                    f"✅ **{_ec_new} new e-commerce leads** saved across {len(_ec_searches)} search(es). "
+                    f"Use the **E-commerce** email template when sending."
                 )
 
     st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
