@@ -384,7 +384,7 @@ def _login_page() -> bool:
                 st.query_params["_n"] = name
             except Exception:
                 pass
-            st.rerun()
+            st.rerun(scope="app")
         else:
             st.error(f"🚫 Access denied for `{email}`. This account has not been granted access.")
 
@@ -829,7 +829,7 @@ with st.sidebar:
         # Clear session and mark signed_out to block query-param restore
         st.session_state.clear()
         st.session_state["_signed_out"] = True
-        st.rerun()
+        st.rerun(scope="app")
 
     # ── Database connection status ────────────────────────────────────────
     _db_ok, _db_msg, _db_backend = _cached_db_status()
@@ -1105,7 +1105,8 @@ tab_find, tab_db, tab_send, tab_followup, tab_analytics = st.tabs([
 # ═════════════════════════════════════════════════════════════════════════════
 # TAB 1 – Find Leads
 # ═════════════════════════════════════════════════════════════════════════════
-with tab_find:
+@st.fragment
+def _render_find():
     _section("Find Leads",
              "Search Google Maps for businesses, then visit each website to extract contact emails.")
 
@@ -1145,7 +1146,7 @@ with tab_find:
             st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
             if st.button("🗑️ Clear search history", use_container_width=False):
                 delete_search_history()
-                st.rerun()
+                st.rerun(scope="app")
 
     st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
 
@@ -1153,6 +1154,9 @@ with tab_find:
     # ── Batch search templates ────────────────────────────────────────────────
 
     _HIGH_VALUE_UK = """\
+
+with tab_find:
+    _render_find()
 HVAC engineer, Birmingham, United Kingdom
 HVAC engineer, Manchester, United Kingdom
 HVAC engineer, Leeds, United Kingdom
@@ -2230,7 +2234,8 @@ junk removal, Atlanta, United States"""
 # ═════════════════════════════════════════════════════════════════════════════
 # TAB 2 – Leads Database
 # ═════════════════════════════════════════════════════════════════════════════
-with tab_db:
+@st.fragment
+def _render_db():
     _section("Leads Database", "All businesses found so far. Sent leads are never emailed again.")
 
     f1, f2 = st.columns([3, 1])
@@ -2240,7 +2245,7 @@ with tab_db:
                 "sent":"Sent","failed":"Failed","no_email":"No email found"}.get(x, x))
     with f2:
         st.markdown("<div style='height:27px'></div>", unsafe_allow_html=True)
-        if st.button("🔄 Refresh", use_container_width=True): st.rerun()
+        if st.button("🔄 Refresh", use_container_width=True): st.rerun(scope="app")
 
     df_db = get_leads(None if status_filter == "all" else status_filter)
 
@@ -2284,15 +2289,19 @@ with tab_db:
             if st.button("Delete", type="primary"):
                 try:
                     ids = [int(x.strip()) for x in ids_input.split(",") if x.strip()]
-                    delete_leads(ids); st.success(f"Deleted {len(ids)} lead(s)."); st.rerun()
+                    delete_leads(ids); st.success(f"Deleted {len(ids)} lead(s)."); st.rerun(scope="app")
                 except ValueError:
                     st.error("Use numbers separated by commas.")
 
 
+
+with tab_db:
+    _render_db()
 # ═════════════════════════════════════════════════════════════════════════════
 # TAB 3 – Send Emails
 # ═════════════════════════════════════════════════════════════════════════════
-with tab_send:
+@st.fragment
+def _render_send():
     _section("Send Emails",
              "Only 'New' leads appear here. Once sent, a lead is marked Sent and never emailed again.")
 
@@ -2379,7 +2388,7 @@ with tab_send:
             ctrl1, ctrl2 = st.columns([1, 3])
             with ctrl1:
                 if st.button("🔄 Refresh status", use_container_width=True):
-                    st.rerun()
+                    st.rerun(scope="app")
             with ctrl2:
                 if _is_running and not _bg["cancel_requested"]:
                     if st.button("⏹ Stop after current email",
@@ -2457,7 +2466,7 @@ with tab_send:
                              key="del_guessed"):
                     delete_leads(df_guessed["id"].astype(int).tolist())
                     st.success(f"Deleted {guessed_ct} leads.")
-                    st.rerun()
+                    st.rerun(scope="app")
 
         # ── Sending method banner ─────────────────────────────────────────
         _brevo_k = st.session_state.get("s_brevo","") or st.secrets.get("brevo_key","")
@@ -2608,15 +2617,19 @@ with tab_send:
                             f"{method_label}. Navigate away — check progress anytime."
                         )
                         time.sleep(1)
-                        st.rerun()
+                        st.rerun(scope="app")
                     else:
                         st.error("Could not start — another send is already running.")
 
 
+
+with tab_send:
+    _render_send()
 # ═════════════════════════════════════════════════════════════════════════════
 # TAB 4 – Follow-ups
 # ═════════════════════════════════════════════════════════════════════════════
-with tab_followup:
+@st.fragment
+def _render_followup():
     _section("Follow-up Sequences",
              "Send automated follow-ups to leads that haven't replied. "
              "Day 3 nudge + Day 7 close — proven to 2-3× reply rates.")
@@ -2672,7 +2685,7 @@ with tab_followup:
                 )
                 if started:
                     st.success(f"✅ {_fu1_max} Follow-up 1 emails queued!")
-                    time.sleep(1); st.rerun()
+                    time.sleep(1); st.rerun(scope="app")
 
     st.divider()
 
@@ -2711,13 +2724,17 @@ with tab_followup:
                 )
                 if started:
                     st.success(f"✅ {_fu2_max} Follow-up 2 emails queued!")
-                    time.sleep(1); st.rerun()
+                    time.sleep(1); st.rerun(scope="app")
 
 
+
+with tab_followup:
+    _render_followup()
 # ═════════════════════════════════════════════════════════════════════════════
 # TAB 5 – Analytics
 # ═════════════════════════════════════════════════════════════════════════════
-with tab_analytics:
+@st.fragment
+def _render_analytics():
     _section("Analytics")
 
     a1, a2, a3, a4, a5, a6 = st.columns(6)
@@ -3316,3 +3333,6 @@ with tab_analytics:
             "searches": "Times run", "total_found": "Total businesses",
             "total_new": "Total new leads", "last_run": "Last run",
         }), use_container_width=True, hide_index=True)
+
+with tab_analytics:
+    _render_analytics()
