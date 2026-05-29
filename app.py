@@ -711,6 +711,28 @@ div[class*="StatusWidget"],
 
 # (No JS iframe needed — CSS @keyframes animation handles anti-dim correctly)
 
+# ── Tab navigation helper ─────────────────────────────────────────────────────
+# st.components.v1.html iframes are same-origin → window.parent.document works.
+import streamlit.components.v1 as _components
+
+if st.session_state.pop("_nav_to_send", False):
+    _components.html("""
+    <script>
+    (function() {
+        function _click(label) {
+            var tabs = window.parent.document.querySelectorAll('[data-baseweb="tab"]');
+            for (var i = 0; i < tabs.length; i++) {
+                if (tabs[i].innerText.trim().indexOf(label) !== -1) {
+                    tabs[i].click(); return;
+                }
+            }
+        }
+        _click('Send Emails');
+        setTimeout(function(){ _click('Send Emails'); }, 350);
+    })();
+    </script>
+    """, height=0)
+
 # ─────────────────────────────────────────────────────────────────────────────
 # UI helpers
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1859,9 +1881,13 @@ junk removal, Atlanta, United States"""
                 _update_status(0, done=True)
                 st.success(
                     f"✅ Batch done — **{_b_total_new} new leads** saved "
-                    f"from {_b_total_biz} businesses across {_b_total} searches. "
-                    f"Go to **Send Emails** to start outreach."
+                    f"from {_b_total_biz} businesses across {_b_total} searches."
                 )
+                if st.button("📤 Go to Send Emails →",
+                             type="primary", use_container_width=True,
+                             key="batch_goto_send"):
+                    st.session_state["_nav_to_send"] = True
+                    st.rerun(scope="app")
 
     # ── E-commerce Store Finder ───────────────────────────────────────────────
     with st.expander("🛒 E-commerce Store Finder — find online shops to pitch", expanded=False):
