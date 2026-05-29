@@ -649,26 +649,40 @@ div[data-baseweb="select"] > div:first-child {
 [data-testid="stStatusWidget"] { display: none !important; }
 
 /* ── Sidebar collapse/expand button — always visible ── */
+/* Target every possible selector Streamlit uses across versions */
 [data-testid="collapsedControl"],
-[data-testid="stSidebarCollapsedControl"] {
+[data-testid="stSidebarCollapsedControl"],
+[data-testid="stSidebarCollapseButton"],
+button[data-testid="collapsedControl"],
+button[data-testid="stSidebarCollapseButton"],
+[data-testid="stSidebar"] ~ div > button,
+section[data-testid="stSidebar"] + div button,
+.stSidebarCollapseButton,
+div[class*="collapsedControl"] {
     display: flex !important;
     opacity: 1 !important;
     visibility: visible !important;
+    pointer-events: auto !important;
     background: #1e293b !important;
     border: 1px solid #334155 !important;
     border-radius: 8px !important;
     box-shadow: 0 2px 8px rgba(0,0,0,.3) !important;
-    transition: background .15s !important;
+    transition: background .15s, border-color .15s !important;
 }
 [data-testid="collapsedControl"]:hover,
-[data-testid="stSidebarCollapsedControl"]:hover {
+[data-testid="stSidebarCollapsedControl"]:hover,
+[data-testid="stSidebarCollapseButton"]:hover,
+.stSidebarCollapseButton:hover {
     background: #334155 !important;
     border-color: #4f46e5 !important;
 }
 [data-testid="collapsedControl"] svg,
-[data-testid="stSidebarCollapsedControl"] svg {
+[data-testid="stSidebarCollapsedControl"] svg,
+[data-testid="stSidebarCollapseButton"] svg,
+.stSidebarCollapseButton svg {
     fill: #94a3b8 !important;
     color: #94a3b8 !important;
+    opacity: 1 !important;
 }
 
 /* ── Prevent page dimming / blur during Streamlit reruns ── */
