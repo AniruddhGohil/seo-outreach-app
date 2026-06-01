@@ -1676,6 +1676,33 @@ digital marketing agency, Sydney, Australia
 digital marketing agency, Melbourne, Australia
 web design agency, Auckland, New Zealand"""
 
+    _WL_ANZ_AGENCIES = """\
+digital marketing agency, Sydney, Australia
+digital marketing agency, Melbourne, Australia
+digital marketing agency, Brisbane, Australia
+digital marketing agency, Perth, Australia
+digital marketing agency, Adelaide, Australia
+digital marketing agency, Gold Coast, Australia
+digital marketing agency, Canberra, Australia
+web design agency, Sydney, Australia
+web design agency, Melbourne, Australia
+web design agency, Brisbane, Australia
+web design agency, Perth, Australia
+web design agency, Adelaide, Australia
+PPC agency, Sydney, Australia
+PPC agency, Melbourne, Australia
+PPC agency, Brisbane, Australia
+content marketing agency, Sydney, Australia
+content marketing agency, Melbourne, Australia
+branding agency, Sydney, Australia
+branding agency, Melbourne, Australia
+digital marketing agency, Auckland, New Zealand
+digital marketing agency, Wellington, New Zealand
+digital marketing agency, Christchurch, New Zealand
+web design agency, Auckland, New Zealand
+web design agency, Wellington, New Zealand
+PPC agency, Auckland, New Zealand"""
+
     _WL_FREELANCERS = """\
 freelance web designer, Birmingham, United Kingdom
 freelance web designer, Manchester, United Kingdom
@@ -1716,15 +1743,18 @@ marketing consultant, Sydney, Australia"""
         st.markdown("<p style='font-size:11px;font-weight:600;color:#7c3aed;"
                     "text-transform:uppercase;letter-spacing:0.5px;margin:0 0 6px;'>"
                     "🤝 White-label &amp; agency outreach</p>", unsafe_allow_html=True)
-        wl1, wl2, wl3 = st.columns(3)
+        wl1, wl2, wl3, wl4 = st.columns(4)
         with wl1:
             if st.button("🇺🇸 USA Agencies (25)", use_container_width=True, key="tpl_wl_usa"):
                 st.session_state["batch_text"] = _WL_USA_AGENCIES
         with wl2:
-            if st.button("🌍 UK + Europe Agencies (25)", use_container_width=True, key="tpl_wl_eur"):
+            if st.button("🌍 UK + Europe (25)", use_container_width=True, key="tpl_wl_eur"):
                 st.session_state["batch_text"] = _WL_UK_EUROPE_AGENCIES
         with wl3:
-            if st.button("👤 Freelancers & Consultants (25)", use_container_width=True, key="tpl_wl_free"):
+            if st.button("🇦🇺 Australia + NZ (25)", use_container_width=True, key="tpl_wl_anz"):
+                st.session_state["batch_text"] = _WL_ANZ_AGENCIES
+        with wl4:
+            if st.button("👤 Freelancers (25)", use_container_width=True, key="tpl_wl_free"):
                 st.session_state["batch_text"] = _WL_FREELANCERS
 
         st.divider()
