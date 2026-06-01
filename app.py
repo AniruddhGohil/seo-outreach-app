@@ -1621,6 +1621,88 @@ junk removal, Houston, United States
 junk removal, Phoenix, United States
 junk removal, Atlanta, United States"""
 
+    # ── White-label agency batch templates ───────────────────────────────────
+    _WL_USA_AGENCIES = """\
+digital marketing agency, Houston, United States
+digital marketing agency, Atlanta, United States
+digital marketing agency, Dallas, United States
+digital marketing agency, Nashville, United States
+digital marketing agency, Charlotte, United States
+digital marketing agency, Indianapolis, United States
+digital marketing agency, Columbus, United States
+digital marketing agency, Louisville, United States
+web design agency, Houston, United States
+web design agency, Atlanta, United States
+web design agency, Dallas, United States
+web design agency, Nashville, United States
+web design agency, Phoenix, United States
+web design agency, Denver, United States
+PPC agency, Houston, United States
+PPC agency, Atlanta, United States
+PPC agency, Dallas, United States
+PPC agency, Nashville, United States
+content marketing agency, Houston, United States
+content marketing agency, Atlanta, United States
+content marketing agency, Dallas, United States
+branding agency, Houston, United States
+branding agency, Atlanta, United States
+branding agency, Charlotte, United States
+growth marketing agency, Houston, United States"""
+
+    _WL_UK_EUROPE_AGENCIES = """\
+digital marketing agency, Birmingham, United Kingdom
+digital marketing agency, Manchester, United Kingdom
+digital marketing agency, Leeds, United Kingdom
+digital marketing agency, Sheffield, United Kingdom
+digital marketing agency, Nottingham, United Kingdom
+digital marketing agency, Leicester, United Kingdom
+web design agency, Birmingham, United Kingdom
+web design agency, Manchester, United Kingdom
+web design agency, Leeds, United Kingdom
+web design agency, Bristol, United Kingdom
+PPC agency, Birmingham, United Kingdom
+PPC agency, Manchester, United Kingdom
+PPC agency, Leeds, United Kingdom
+content marketing agency, Birmingham, United Kingdom
+content marketing agency, Manchester, United Kingdom
+digital marketing agency, Dublin, Ireland
+web design agency, Dublin, Ireland
+digital marketing agency, Amsterdam, Netherlands
+digital marketing agency, Berlin, Germany
+digital marketing agency, Paris, France
+digital marketing agency, Barcelona, Spain
+digital marketing agency, Toronto, Canada
+digital marketing agency, Sydney, Australia
+digital marketing agency, Melbourne, Australia
+web design agency, Auckland, New Zealand"""
+
+    _WL_FREELANCERS = """\
+freelance web designer, Birmingham, United Kingdom
+freelance web designer, Manchester, United Kingdom
+freelance web designer, Leeds, United Kingdom
+freelance web developer, Birmingham, United Kingdom
+freelance web developer, Manchester, United Kingdom
+freelance marketer, Birmingham, United Kingdom
+freelance marketer, Manchester, United Kingdom
+marketing consultant, Birmingham, United Kingdom
+marketing consultant, Manchester, United Kingdom
+marketing consultant, Leeds, United Kingdom
+freelance web designer, Houston, United States
+freelance web designer, Atlanta, United States
+freelance web designer, Dallas, United States
+freelance web developer, Houston, United States
+freelance web developer, Atlanta, United States
+freelance marketer, Houston, United States
+freelance marketer, Atlanta, United States
+marketing consultant, Houston, United States
+marketing consultant, Dallas, United States
+marketing consultant, Nashville, United States
+freelance web designer, Dublin, Ireland
+marketing consultant, Dublin, Ireland
+freelance web designer, Amsterdam, Netherlands
+freelance marketer, Toronto, Canada
+marketing consultant, Sydney, Australia"""
+
     with st.expander("⚡ Batch Search — run multiple keywords at once", expanded=False):
         st.markdown(
             "<p style='font-size:13px;color:#6b7280;margin:0 0 12px;'>"
@@ -1629,6 +1711,23 @@ junk removal, Atlanta, United States"""
             "Country defaults to United Kingdom if omitted.</p>",
             unsafe_allow_html=True,
         )
+
+        # ── White-label / agency templates ─────────────────────────────────────
+        st.markdown("<p style='font-size:11px;font-weight:600;color:#7c3aed;"
+                    "text-transform:uppercase;letter-spacing:0.5px;margin:0 0 6px;'>"
+                    "🤝 White-label &amp; agency outreach</p>", unsafe_allow_html=True)
+        wl1, wl2, wl3 = st.columns(3)
+        with wl1:
+            if st.button("🇺🇸 USA Agencies (25)", use_container_width=True, key="tpl_wl_usa"):
+                st.session_state["batch_text"] = _WL_USA_AGENCIES
+        with wl2:
+            if st.button("🌍 UK + Europe Agencies (25)", use_container_width=True, key="tpl_wl_eur"):
+                st.session_state["batch_text"] = _WL_UK_EUROPE_AGENCIES
+        with wl3:
+            if st.button("👤 Freelancers & Consultants (25)", use_container_width=True, key="tpl_wl_free"):
+                st.session_state["batch_text"] = _WL_FREELANCERS
+
+        st.divider()
 
         # ── USA templates ──────────────────────────────────────────────────────
         st.markdown("<p style='font-size:11px;font-weight:600;color:#3b82f6;"

@@ -49,6 +49,19 @@ SUBJECT_LINES = [
     "Who Google recommends is changing — {business_name}",
 ]
 
+WHITE_LABEL_SUBJECT_LINES = [
+    "Quick question for {business_name}",
+    "{business_name} – SEO capacity question",
+    "A thought on SEO overflow for {business_name}",
+    "{business_name} – white-label SEO resource",
+    "Outsourced SEO for {business_name} clients",
+    "{business_name} – SEO partnership idea",
+    "Do you ever need extra SEO resource, {business_name}?",
+    "{business_name} – handling all your clients' SEO in-house?",
+    "SEO support for {business_name}'s client base",
+    "{business_name} – fractional SEO thought",
+]
+
 ECOMM_SUBJECT_LINES = [
     "{business_name} – organic revenue opportunity",
     "Quick question about {business_name}'s Google rankings",
@@ -73,7 +86,12 @@ FOLLOWUP2_SUBJECT_LINES = [
 
 
 def get_random_subject(business_name: str, template: str = "short") -> str:
-    pool = ECOMM_SUBJECT_LINES if template == "ecomm" else SUBJECT_LINES
+    if template == "ecomm":
+        pool = ECOMM_SUBJECT_LINES
+    elif template in ("wl_short", "wl_agency", "wl_freelancer"):
+        pool = WHITE_LABEL_SUBJECT_LINES
+    else:
+        pool = SUBJECT_LINES
     return random.choice(pool).format(business_name=business_name)
 
 def get_followup_subject(business_name: str, touch: int = 1) -> str:
@@ -582,14 +600,197 @@ def _build_followup2_text(business_name: str, sender_name: str, sender_email: st
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# WHITE-LABEL TEMPLATE 1 — WL_SHORT
+# ~90 words. Peer-to-peer tone. No jargon. One clear question at the end.
+# Best for: digital marketing agencies, web design studios, PPC agencies.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def build_wl_short_html(business_name: str, sender_name: str, sender_email: str,
+                        portfolio_url: str = "", case_study: str = "") -> str:
+    return f"""<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>{_BASE_CSS}</style></head>
+<body><div class="wrap"><div class="body">
+
+<p>Hi {business_name} team,</p>
+
+<p>I work with agencies like yours as a white-label SEO partner — handling
+the SEO delivery while you maintain the client relationship. Fully behind
+the scenes, your branding throughout.</p>
+
+<p>A lot of agencies reach out when they have more client demand than
+internal capacity, or when a client needs SEO but they do not have
+a dedicated specialist in-house. That is exactly where I come in.</p>
+
+{_proof_html(case_study)}
+
+<p>Is SEO something {business_name} currently delivers in-house, or do
+you ever bring in outside resource?</p>
+
+{_sig_html(sender_name, sender_email, portfolio_url)}
+
+</div>
+{_FOOTER_HTML.format(business_name=business_name)}
+</div></body></html>"""
+
+
+def _build_wl_short_text(business_name: str, sender_name: str, sender_email: str,
+                          portfolio_url: str = "", case_study: str = "") -> str:
+    return (
+        f"Hi {business_name} team,\n\n"
+        f"I work with agencies like yours as a white-label SEO partner —\n"
+        f"handling the SEO delivery while you maintain the client relationship.\n"
+        f"Fully behind the scenes, your branding throughout.\n\n"
+        f"A lot of agencies reach out when they have more client demand than\n"
+        f"internal capacity, or when a client needs SEO but they do not have\n"
+        f"a dedicated specialist in-house. That is exactly where I come in.\n\n"
+        + _proof_text(case_study) +
+        f"Is SEO something {business_name} currently delivers in-house, or do\n"
+        f"you ever bring in outside resource?\n\n"
+        + _sig_text(sender_name, sender_email, portfolio_url)
+        + _FOOTER_TEXT.format(business_name=business_name)
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WHITE-LABEL TEMPLATE 2 — WL_AGENCY
+# ~170 words. Full partnership pitch. Best for established agencies.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def build_wl_agency_html(business_name: str, sender_name: str, sender_email: str,
+                          portfolio_url: str = "", case_study: str = "") -> str:
+    return f"""<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>{_BASE_CSS}</style></head>
+<body><div class="wrap"><div class="body">
+
+<p>Hi {business_name} team,</p>
+
+<p>I specialise in white-label SEO for agencies — acting as your
+behind-the-scenes SEO team so you can offer clients a complete digital
+marketing service without the overhead of a full in-house department.</p>
+
+<p>What I typically help agencies with:</p>
+
+<div class="card">
+  <p class="ct">📈 SEO delivery for your clients</p>
+  <p class="cd">Full technical SEO, content strategy, and link building
+  delivered under your brand. Clients see your agency — I stay invisible.</p>
+</div>
+
+<div class="card">
+  <p class="ct">⚡ Overflow & capacity support</p>
+  <p class="cd">When your team is at capacity or a client brief is outside
+  your core specialism, I step in as a trusted extension of your team.</p>
+</div>
+
+<div class="card">
+  <p class="ct">🤖 AI & GEO search readiness</p>
+  <p class="cd">Preparing client websites for ChatGPT, Gemini and Google's
+  AI answers — a growing demand most agencies are not yet fulfilling.</p>
+</div>
+
+{_proof_html(case_study)}
+
+<p>Happy to jump on a 15-minute call to see whether there is a fit.
+No commitment — just a conversation.</p>
+
+{_sig_html(sender_name, sender_email, portfolio_url)}
+
+</div>
+{_FOOTER_HTML.format(business_name=business_name)}
+</div></body></html>"""
+
+
+def _build_wl_agency_text(business_name: str, sender_name: str, sender_email: str,
+                            portfolio_url: str = "", case_study: str = "") -> str:
+    return (
+        f"Hi {business_name} team,\n\n"
+        f"I specialise in white-label SEO for agencies — acting as your\n"
+        f"behind-the-scenes SEO team so you can offer clients a complete\n"
+        f"digital marketing service without the overhead of a full in-house\n"
+        f"SEO department.\n\n"
+        f"What I typically help agencies with:\n\n"
+        f"SEO delivery for your clients — full technical SEO, content strategy\n"
+        f"and link building delivered under your brand. Clients see your agency.\n\n"
+        f"Overflow & capacity support — when your team is at capacity or a client\n"
+        f"brief is outside your core specialism, I step in as a trusted extension.\n\n"
+        f"AI & GEO search readiness — preparing client websites for ChatGPT,\n"
+        f"Gemini and Google's AI answers. A growing demand most agencies are\n"
+        f"not yet fulfilling.\n\n"
+        + _proof_text(case_study) +
+        f"Happy to jump on a 15-minute call to see whether there is a fit.\n"
+        f"No commitment — just a conversation.\n\n"
+        + _sig_text(sender_name, sender_email, portfolio_url)
+        + _FOOTER_TEXT.format(business_name=business_name)
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WHITE-LABEL TEMPLATE 3 — WL_FREELANCER
+# ~80 words. Peer tone. For freelancers, consultants, solo web developers.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def build_wl_freelancer_html(business_name: str, sender_name: str, sender_email: str,
+                              portfolio_url: str = "", case_study: str = "") -> str:
+    return f"""<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>{_BASE_CSS}</style></head>
+<body><div class="wrap"><div class="body">
+
+<p>Hi,</p>
+
+<p>I am a freelance SEO specialist and I often partner with web designers,
+developers and marketing consultants who need SEO support for their clients
+but do not specialise in it themselves.</p>
+
+<p>The arrangement is straightforward — you bring me in as a subcontractor,
+I do the SEO work, you handle the client relationship. White-label or
+openly collaborative, whichever works best for you.</p>
+
+{_proof_html(case_study)}
+
+<p>Do you ever have clients who ask about SEO? Worth a quick chat.</p>
+
+{_sig_html(sender_name, sender_email, portfolio_url)}
+
+</div>
+{_FOOTER_HTML.format(business_name=business_name)}
+</div></body></html>"""
+
+
+def _build_wl_freelancer_text(business_name: str, sender_name: str, sender_email: str,
+                                portfolio_url: str = "", case_study: str = "") -> str:
+    return (
+        f"Hi,\n\n"
+        f"I am a freelance SEO specialist and I often partner with web designers,\n"
+        f"developers and marketing consultants who need SEO support for their\n"
+        f"clients but do not specialise in it themselves.\n\n"
+        f"The arrangement is straightforward — you bring me in as a subcontractor,\n"
+        f"I do the SEO work, you handle the client relationship. White-label or\n"
+        f"openly collaborative, whichever works best for you.\n\n"
+        + _proof_text(case_study) +
+        f"Do you ever have clients who ask about SEO? Worth a quick chat.\n\n"
+        + _sig_text(sender_name, sender_email, portfolio_url)
+        + _FOOTER_TEXT.format(business_name=business_name)
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Public helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
 TEMPLATE_OPTIONS = {
-    "short":    ("Short & punchy",       "~90 words · plain prose · highest reply rate · cold first touch"),
-    "story":    ("Narrative",            "~160 words · AI-era pivot · great for cold outreach"),
-    "detailed": ("Full breakdown",       "~220 words · three service cards · best for warm leads"),
-    "ecomm":    ("E-commerce",           "~130 words · targets online stores · uses revenue case study"),
+    "short":         ("Short & punchy",       "~90 words · plain prose · highest reply rate · cold first touch"),
+    "story":         ("Narrative",            "~160 words · AI-era pivot · great for cold outreach"),
+    "detailed":      ("Full breakdown",       "~220 words · three service cards · best for warm leads"),
+    "ecomm":         ("E-commerce",           "~130 words · targets online stores · uses revenue case study"),
+    "wl_short":      ("WL · Agency short",    "~90 words · white-label pitch · peer tone · agencies & studios"),
+    "wl_agency":     ("WL · Agency full",     "~170 words · full partnership pitch · service cards · agencies"),
+    "wl_freelancer": ("WL · Freelancer",      "~80 words · subcontractor tone · web devs & solo consultants"),
 }
 
 FOLLOWUP_OPTIONS = {
@@ -598,21 +799,27 @@ FOLLOWUP_OPTIONS = {
 }
 
 _HTML_BUILDERS = {
-    "short":     build_short_html,
-    "story":     build_story_html,
-    "detailed":  build_detailed_html,
-    "ecomm":     build_ecomm_html,
-    "followup1": build_followup_html,
-    "followup2": build_followup2_html,
+    "short":         build_short_html,
+    "story":         build_story_html,
+    "detailed":      build_detailed_html,
+    "ecomm":         build_ecomm_html,
+    "followup1":     build_followup_html,
+    "followup2":     build_followup2_html,
+    "wl_short":      build_wl_short_html,
+    "wl_agency":     build_wl_agency_html,
+    "wl_freelancer": build_wl_freelancer_html,
 }
 
 _TEXT_BUILDERS = {
-    "short":     _build_short_text,
-    "story":     _build_story_text,
-    "detailed":  _build_detailed_text,
-    "ecomm":     _build_ecomm_text,
-    "followup1": _build_followup_text,
-    "followup2": _build_followup2_text,
+    "short":         _build_short_text,
+    "story":         _build_story_text,
+    "detailed":      _build_detailed_text,
+    "ecomm":         _build_ecomm_text,
+    "followup1":     _build_followup_text,
+    "followup2":     _build_followup2_text,
+    "wl_short":      _build_wl_short_text,
+    "wl_agency":     _build_wl_agency_text,
+    "wl_freelancer": _build_wl_freelancer_text,
 }
 
 
