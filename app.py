@@ -1746,16 +1746,16 @@ marketing consultant, Sydney, Australia"""
         wl1, wl2, wl3, wl4 = st.columns(4)
         with wl1:
             if st.button("🇺🇸 USA Agencies (25)", use_container_width=True, key="tpl_wl_usa"):
-                st.session_state["batch_text"] = _WL_USA_AGENCIES
+                st.session_state["batch_textarea"] = st.session_state["batch_text"] = _WL_USA_AGENCIES
         with wl2:
             if st.button("🌍 UK + Europe (25)", use_container_width=True, key="tpl_wl_eur"):
-                st.session_state["batch_text"] = _WL_UK_EUROPE_AGENCIES
+                st.session_state["batch_textarea"] = st.session_state["batch_text"] = _WL_UK_EUROPE_AGENCIES
         with wl3:
             if st.button("🇦🇺 Australia + NZ (25)", use_container_width=True, key="tpl_wl_anz"):
-                st.session_state["batch_text"] = _WL_ANZ_AGENCIES
+                st.session_state["batch_textarea"] = st.session_state["batch_text"] = _WL_ANZ_AGENCIES
         with wl4:
             if st.button("👤 Freelancers (25)", use_container_width=True, key="tpl_wl_free"):
-                st.session_state["batch_text"] = _WL_FREELANCERS
+                st.session_state["batch_textarea"] = st.session_state["batch_text"] = _WL_FREELANCERS
 
         st.divider()
 
@@ -1766,16 +1766,16 @@ marketing consultant, Sydney, Australia"""
         u1, u2, u3, u4 = st.columns(4)
         with u1:
             if st.button("🔧 USA Trades", use_container_width=True, key="tpl_usatrades"):
-                st.session_state["batch_text"] = _USA_TRADES
+                st.session_state["batch_textarea"] = st.session_state["batch_text"] = _USA_TRADES
         with u2:
             if st.button("⚖️ USA Attorneys & Pro", use_container_width=True, key="tpl_usapro"):
-                st.session_state["batch_text"] = _USA_PROFESSIONALS
+                st.session_state["batch_textarea"] = st.session_state["batch_text"] = _USA_PROFESSIONALS
         with u3:
             if st.button("🏥 USA Healthcare", use_container_width=True, key="tpl_usahealth"):
-                st.session_state["batch_text"] = _USA_HEALTHCARE
+                st.session_state["batch_textarea"] = st.session_state["batch_text"] = _USA_HEALTHCARE
         with u4:
             if st.button("💅 USA Beauty & Spas", use_container_width=True, key="tpl_usabeauty"):
-                st.session_state["batch_text"] = _USA_BEAUTY
+                st.session_state["batch_textarea"] = st.session_state["batch_text"] = _USA_BEAUTY
 
         st.markdown("<p style='font-size:11px;font-weight:600;color:#3b82f6;"
                     "text-transform:uppercase;letter-spacing:0.5px;margin:8px 0 6px;'>"
@@ -1784,11 +1784,11 @@ marketing consultant, Sydney, Australia"""
         with m1:
             if st.button("🏆 High-Value USA (50 searches)", use_container_width=True,
                          key="tpl_highvalue_usa"):
-                st.session_state["batch_text"] = _HIGH_VALUE_USA
+                st.session_state["batch_textarea"] = st.session_state["batch_text"] = _HIGH_VALUE_USA
         with m2:
             if st.button("☀️ Sun Belt + Florida (50 searches)", use_container_width=True,
                          key="tpl_sunbelt"):
-                st.session_state["batch_text"] = _SUNBELT_USA
+                st.session_state["batch_textarea"] = st.session_state["batch_text"] = _SUNBELT_USA
 
         st.divider()
 
@@ -1799,16 +1799,16 @@ marketing consultant, Sydney, Australia"""
         t1, t2, t3, t4 = st.columns(4)
         with t1:
             if st.button("🔧 UK Trades", use_container_width=True, key="tpl_uktrades"):
-                st.session_state["batch_text"] = _UK_TRADES
+                st.session_state["batch_textarea"] = st.session_state["batch_text"] = _UK_TRADES
         with t2:
             if st.button("💼 UK Professionals", use_container_width=True, key="tpl_ukpro"):
-                st.session_state["batch_text"] = _UK_PROFESSIONALS
+                st.session_state["batch_textarea"] = st.session_state["batch_text"] = _UK_PROFESSIONALS
         with t3:
             if st.button("🏥 UK Healthcare", use_container_width=True, key="tpl_ukhealth"):
-                st.session_state["batch_text"] = _UK_HEALTHCARE
+                st.session_state["batch_textarea"] = st.session_state["batch_text"] = _UK_HEALTHCARE
         with t4:
             if st.button("💅 UK Beauty", use_container_width=True, key="tpl_ukbeauty"):
-                st.session_state["batch_text"] = _UK_BEAUTY
+                st.session_state["batch_textarea"] = st.session_state["batch_text"] = _UK_BEAUTY
 
         st.markdown("<p style='font-size:11px;font-weight:600;color:#9ca3af;"
                     "text-transform:uppercase;letter-spacing:0.5px;margin:8px 0 6px;'>"
@@ -1816,17 +1816,17 @@ marketing consultant, Sydney, Australia"""
         l1, l2, l3, l4 = st.columns(4)
         with l1:
             if st.button("🔧 London Trades", use_container_width=True, key="tpl_lontrades"):
-                st.session_state["batch_text"] = _LONDON_TRADES
+                st.session_state["batch_textarea"] = st.session_state["batch_text"] = _LONDON_TRADES
         with l2:
             if st.button("💼 London Professionals", use_container_width=True, key="tpl_lonpro"):
-                st.session_state["batch_text"] = _LONDON_PROFESSIONALS
+                st.session_state["batch_textarea"] = st.session_state["batch_text"] = _LONDON_PROFESSIONALS
         with l3:
             if st.button("🏥 London Healthcare", use_container_width=True, key="tpl_lonhealth"):
-                st.session_state["batch_text"] = _UK_HEALTHCARE.replace(", United Kingdom",
+                st.session_state["batch_textarea"] = st.session_state["batch_text"] = _UK_HEALTHCARE.replace(", United Kingdom",
                     ", London, United Kingdom")
         with l4:
             if st.button("💅 London Beauty", use_container_width=True, key="tpl_lonbeauty"):
-                st.session_state["batch_text"] = _LONDON_BEAUTY
+                st.session_state["batch_textarea"] = st.session_state["batch_text"] = _LONDON_BEAUTY
 
         st.markdown("<p style='font-size:11px;font-weight:600;color:#9ca3af;"
                     "text-transform:uppercase;letter-spacing:0.5px;margin:8px 0 6px;'>"
@@ -1835,11 +1835,11 @@ marketing consultant, Sydney, Australia"""
         with h1:
             if st.button("🏆 High-Value UK (50 searches)", use_container_width=True,
                          key="tpl_highvalue_uk"):
-                st.session_state["batch_text"] = _HIGH_VALUE_UK
+                st.session_state["batch_textarea"] = st.session_state["batch_text"] = _HIGH_VALUE_UK
         with h2:
             if st.button("🏆 High-Value London (45 searches)", use_container_width=True,
                          key="tpl_highvalue_lon"):
-                st.session_state["batch_text"] = _HIGH_VALUE_LONDON
+                st.session_state["batch_textarea"] = st.session_state["batch_text"] = _HIGH_VALUE_LONDON
 
         batch_text = st.text_area(
             "Search list",
