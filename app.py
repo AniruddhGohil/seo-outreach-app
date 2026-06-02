@@ -470,7 +470,7 @@ html, body, [class*="css"] {
     background: #1e293b !important; border: 1px solid #334155 !important;
     color: #94a3b8 !important; border-radius: 6px !important;
     font-size: 13px !important; font-weight: 500 !important;
-    width: 100% !important; transition: all .12s !important;
+    width: 100% !important;
     padding: 7px 12px !important;
 }
 [data-testid="stSidebar"] .stButton > button:hover {
@@ -685,10 +685,14 @@ div[data-baseweb="select"] > div:first-child {
 */
 @keyframes _keepOpaque { 0%, 100% { opacity: 1; filter: none; } }
 
+/* Cover every major container — sidebar included — so nothing fades during reruns */
 [data-testid="stAppViewContainer"],
 [data-testid="stAppViewContainer"] > section,
 [data-testid="stMain"],
 [data-testid="stMainBlockContainer"],
+[data-testid="stSidebar"],
+[data-testid="stSidebar"] > div,
+[data-testid="stSidebarContent"],
 [data-testid="stVerticalBlock"],
 [data-testid="stVerticalBlockBorderWrapper"],
 [data-testid="stTabsContent"],
@@ -697,15 +701,30 @@ section[tabindex="0"] {
     animation: _keepOpaque 1ms step-end infinite !important;
     pointer-events: auto !important;
     filter: none !important;
+    opacity: 1 !important;
 }
 
-/* Prevent white flash on background — always keep app colour */
+/* Prevent white flash — pin background everywhere */
 html, body, .stApp,
-[data-testid="stAppViewContainer"] {
+[data-testid="stAppViewContainer"],
+[data-testid="stSidebar"] {
     background-color: #f1f5f9 !important;
 }
+[data-testid="stSidebar"],
+[data-testid="stSidebar"] > div {
+    background-color: #0f172a !important;
+}
 
-/* Remove transform on button hover — translateY causes layout recalc during reruns */
+/* Kill ALL transitions globally — they fire during DOM reconciliation and cause flicker.
+   Only restore transitions on elements where hover feedback is genuinely needed. */
+* { transition: none !important; }
+.stButton > button[kind="primary"]:hover  { background: linear-gradient(135deg,#4338ca,#4f46e5) !important; }
+.stButton > button[kind="secondary"]:hover { background: #f5f3ff !important; border-color: #c7d2fe !important; color: #4f46e5 !important; }
+[data-testid="stSidebar"] .stButton > button:hover { background: #334155 !important; }
+[data-testid="stSidebarCollapseButton"]:hover,
+[data-testid="collapsedControl"]:hover { background: #334155 !important; border-color: #4f46e5 !important; }
+
+/* No transform ever — causes layout recalc during reruns */
 .stButton > button { transform: none !important; }
 
 /* Ensure buttons and interactive elements are always clickable */
@@ -1183,7 +1202,7 @@ def _render_find():
             st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
             if st.button("🗑️ Clear search history", use_container_width=False):
                 delete_search_history()
-                st.rerun(scope="app")
+                st.rerun()
 
     st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
 
@@ -2196,7 +2215,7 @@ def _render_db():
                 "sent":"Sent","failed":"Failed","no_email":"No email found"}.get(x, x))
     with f2:
         st.markdown("<div style='height:27px'></div>", unsafe_allow_html=True)
-        if st.button("🔄 Refresh", use_container_width=True): st.rerun(scope="app")
+        if st.button("🔄 Refresh", use_container_width=True): st.rerun()
 
     df_db = get_leads(None if status_filter == "all" else status_filter)
 
@@ -2240,7 +2259,7 @@ def _render_db():
             if st.button("Delete", type="primary"):
                 try:
                     ids = [int(x.strip()) for x in ids_input.split(",") if x.strip()]
-                    delete_leads(ids); st.success(f"Deleted {len(ids)} lead(s)."); st.rerun(scope="app")
+                    delete_leads(ids); st.success(f"Deleted {len(ids)} lead(s)."); st.rerun()
                 except ValueError:
                     st.error("Use numbers separated by commas.")
 
@@ -2291,7 +2310,7 @@ def _render_send():
         st.markdown("<div style='height:22px'></div>", unsafe_allow_html=True)
         if st.button("🔄 Refresh", key="send_refresh", use_container_width=True,
                      help="Reload leads from database after a batch search"):
-            st.rerun(scope="app")
+            st.rerun()
 
     # ── SMTP not configured ───────────────────────────────────────────────────
     if not _smtp_ready():
@@ -2344,7 +2363,7 @@ def _render_send():
         _rc1, _rc2 = st.columns(2)
         with _rc1:
             if st.button("🔄 Refresh status", use_container_width=True, key="send_refresh_status"):
-                st.rerun(scope="app")
+                st.rerun()
         with _rc2:
             if not _bg["cancel_requested"]:
                 if st.button("⏹ Stop after current email", use_container_width=True):
@@ -2478,7 +2497,7 @@ def _render_send():
             if st.button("🗑️ Delete all guessed-email leads", type="primary", key="del_guessed"):
                 delete_leads(df_guessed["id"].astype(int).tolist())
                 st.success(f"Deleted {guessed_ct} leads.")
-                st.rerun(scope="app")
+                st.rerun()
 
 
 with tab_send:
